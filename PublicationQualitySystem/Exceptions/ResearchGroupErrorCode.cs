@@ -1,3 +1,5 @@
+using PublicationQualitySystem.Enums;
+
 namespace PublicationQualitySystem.Exceptions;
 
 public static class ResearchGroupErrorCode

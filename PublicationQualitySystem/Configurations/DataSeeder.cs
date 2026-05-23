@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Entities;
 using PublicationQualitySystem.Enums;
-using PublicationQualitySystem.Services;
+using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Configurations;
 

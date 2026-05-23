@@ -1,8 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationQualitySystem.Common;
-using PublicationQualitySystem.DTOs;
-using PublicationQualitySystem.Services;
+using PublicationQualitySystem.DTOs.Auth;
+using PublicationQualitySystem.DTOs.File;
+using PublicationQualitySystem.DTOs.ResearchGroup;
+using PublicationQualitySystem.DTOs.ResearchProfile;
+using PublicationQualitySystem.DTOs.Role;
+using PublicationQualitySystem.DTOs.User;
+using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Controllers;
 

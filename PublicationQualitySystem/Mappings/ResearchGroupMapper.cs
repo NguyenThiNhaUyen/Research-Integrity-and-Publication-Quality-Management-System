@@ -1,4 +1,9 @@
-using PublicationQualitySystem.DTOs;
+using PublicationQualitySystem.DTOs.Auth;
+using PublicationQualitySystem.DTOs.File;
+using PublicationQualitySystem.DTOs.ResearchGroup;
+using PublicationQualitySystem.DTOs.ResearchProfile;
+using PublicationQualitySystem.DTOs.Role;
+using PublicationQualitySystem.DTOs.User;
 using PublicationQualitySystem.Entities;
 using PublicationQualitySystem.Enums;
 
