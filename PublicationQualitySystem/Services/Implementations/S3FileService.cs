@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
+using Microsoft.Extensions.Options;
 using PublicationQualitySystem.DTOs.Auth;
 using PublicationQualitySystem.DTOs.File;
 using PublicationQualitySystem.DTOs.ResearchGroup;
@@ -7,13 +8,14 @@ using PublicationQualitySystem.DTOs.ResearchProfile;
 using PublicationQualitySystem.DTOs.Role;
 using PublicationQualitySystem.DTOs.User;
 using PublicationQualitySystem.Exceptions;
+using PublicationQualitySystem.Options;
 using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Services.Implementations;
 
-public class S3FileService(IAmazonS3 s3, IConfiguration config) : IS3FileService
+public class S3FileService(IAmazonS3 s3, IOptions<S3Options> options) : IS3FileService
 {
-    private string Bucket => config["Aws:S3:Bucket"] ?? string.Empty;
+    private string Bucket => options.Value.Bucket ?? string.Empty;
 
     public async Task<S3FileResponseDto> UploadFileAsync(IFormFile file)
     {

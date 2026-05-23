@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
+using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Configurations;
 using PublicationQualitySystem.DTOs.Auth;
 using PublicationQualitySystem.DTOs.File;
@@ -11,6 +12,7 @@ using PublicationQualitySystem.DTOs.Role;
 using PublicationQualitySystem.DTOs.User;
 using PublicationQualitySystem.Entities;
 using PublicationQualitySystem.Exceptions;
+using PublicationQualitySystem.Options;
 using PublicationQualitySystem.Repositories.Interfaces;
 using PublicationQualitySystem.Services.Interfaces;
 
@@ -18,13 +20,13 @@ namespace PublicationQualitySystem.Services.Implementations;
 
 public class AuthService(
     IAmazonCognitoIdentityProvider cognito,
-    IConfiguration config,
+    IOptions<CognitoOptions> cognitoOptions,
     ApplicationDbContext db,
     IUserRepository users) : IAuthService
 {
-    private string ClientId => config["Aws:Cognito:ClientId"] ?? string.Empty;
-    private string ClientSecret => config["Aws:Cognito:ClientSecret"] ?? string.Empty;
-    private string UserPoolId => config["Aws:Cognito:UserPoolId"] ?? string.Empty;
+    private string ClientId => cognitoOptions.Value.ClientId ?? string.Empty;
+    private string ClientSecret => cognitoOptions.Value.ClientSecret ?? string.Empty;
+    private string UserPoolId => cognitoOptions.Value.UserPoolId ?? string.Empty;
 
     public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
     {

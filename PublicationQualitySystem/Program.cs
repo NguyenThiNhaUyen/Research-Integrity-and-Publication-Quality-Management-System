@@ -1,5 +1,5 @@
 using PublicationQualitySystem.Configurations;
-using PublicationQualitySystem.Exceptions;
+using PublicationQualitySystem.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -7,14 +7,8 @@ builder.Services.AddApplicationServices(builder.Configuration);
 
 var app = builder.Build();
 
-app.UseGlobalExceptionHandling();
-app.UseSwagger();
-app.UseSwaggerUI();
-app.UseHttpsRedirection();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
+await app.InitializeDatabaseAsync();
 
-await app.SeedDatabaseAsync();
+app.ConfigureMiddlewarePipeline();
 
 app.Run();

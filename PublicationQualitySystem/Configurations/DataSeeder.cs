@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Entities;
 using PublicationQualitySystem.Enums;
+using PublicationQualitySystem.Options;
 using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Configurations;
 
-public class DataSeeder(ApplicationDbContext db, ICognitoGroupService cognitoGroups, ICognitoUserService cognitoUsers, IConfiguration config, ILogger<DataSeeder> logger)
+public class DataSeeder(ApplicationDbContext db, ICognitoGroupService cognitoGroups, ICognitoUserService cognitoUsers, IOptions<AdminOptions> adminOptions, ILogger<DataSeeder> logger)
 {
     public async Task SeedAsync()
     {
@@ -53,9 +55,9 @@ public class DataSeeder(ApplicationDbContext db, ICognitoGroupService cognitoGro
 
     private async Task SeedAdminAsync()
     {
-        var fullName = Normalize(config["App:Admin:FullName"]);
-        var email = NormalizeEmail(config["App:Admin:Email"]);
-        var password = Normalize(config["App:Admin:Password"]);
+        var fullName = Normalize(adminOptions.Value.FullName);
+        var email = NormalizeEmail(adminOptions.Value.Email);
+        var password = Normalize(adminOptions.Value.Password);
         if (string.IsNullOrWhiteSpace(fullName) || string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
             logger.LogWarning("Default admin account was not seeded because admin full name, email, or password is missing");

@@ -1,3 +1,4 @@
+using PublicationQualitySystem.Common;
 using PublicationQualitySystem.Enums;
 
 namespace PublicationQualitySystem.Exceptions;

@@ -1,13 +1,15 @@
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
+using Microsoft.Extensions.Options;
+using PublicationQualitySystem.Options;
 using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Services.Implementations;
 
-public class CognitoUserService(IAmazonCognitoIdentityProvider cognito, IConfiguration config, ILogger<CognitoUserService> logger) : ICognitoUserService
+public class CognitoUserService(IAmazonCognitoIdentityProvider cognito, IOptions<CognitoOptions> options, ILogger<CognitoUserService> logger) : ICognitoUserService
 {
-    private string UserPoolId => config["Aws:Cognito:UserPoolId"] ?? string.Empty;
-    private string AdminGroupName => config["Aws:Cognito:AdminGroupName"] ?? "ADMIN";
+    private string UserPoolId => options.Value.UserPoolId ?? string.Empty;
+    private string AdminGroupName => options.Value.AdminGroupName;
 
     public async Task<bool> ExistsByEmailAsync(string email)
     {

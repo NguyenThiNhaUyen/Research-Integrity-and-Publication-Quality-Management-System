@@ -1,13 +1,15 @@
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
+using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Exceptions;
+using PublicationQualitySystem.Options;
 using PublicationQualitySystem.Services.Interfaces;
 
 namespace PublicationQualitySystem.Services.Implementations;
 
-public class CognitoGroupService(IAmazonCognitoIdentityProvider cognito, IConfiguration config, ILogger<CognitoGroupService> logger) : ICognitoGroupService
+public class CognitoGroupService(IAmazonCognitoIdentityProvider cognito, IOptions<CognitoOptions> options, ILogger<CognitoGroupService> logger) : ICognitoGroupService
 {
-    private string UserPoolId => config["Aws:Cognito:UserPoolId"] ?? string.Empty;
+    private string UserPoolId => options.Value.UserPoolId ?? string.Empty;
 
     public async Task EnsureGroupExistsAsync(string groupName)
     {
