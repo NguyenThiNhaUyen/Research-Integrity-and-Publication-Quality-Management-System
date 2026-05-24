@@ -38,7 +38,10 @@ public static class AuthenticationConfiguration
                 options.Authority = cognito.Issuer;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
-                    ValidateIssuer = !string.IsNullOrWhiteSpace(cognito.Issuer),
+                    ValidateIssuer = true,
+                    ValidIssuer = cognito.Issuer,
+                    ValidateAudience = false,
+                    ValidateLifetime = true,
                     NameClaimType = ClaimConstants.Email
                 };
                 options.EventsType = typeof(JwtAuthenticationEvents);
