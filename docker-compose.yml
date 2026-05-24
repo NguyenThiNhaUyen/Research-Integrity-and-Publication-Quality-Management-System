@@ -2,7 +2,7 @@ services:
   publication-api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: PublicQualitySystem/PublicationQualitySystem.Api/Dockerfile
     container_name: publication-quality-api
     ports:
       - "8080:8080"
