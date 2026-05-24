@@ -7,7 +7,10 @@ public class CognitoClaimsTransformer
 {
     public void Transform(ClaimsIdentity identity, ClaimsPrincipal principal)
     {
-        var groups = principal.FindAll(ClaimConstants.CognitoGroups).Select(c => c.Value);
+        var groups = principal.FindAll(ClaimConstants.CognitoGroups)
+            .Select(c => c.Value)
+            .ToList();
+
         foreach (var group in groups.Where(g => !string.IsNullOrWhiteSpace(g)))
         {
             identity.AddClaim(new Claim(

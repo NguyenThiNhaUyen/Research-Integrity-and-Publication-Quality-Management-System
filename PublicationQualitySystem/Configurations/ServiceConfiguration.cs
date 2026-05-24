@@ -38,7 +38,8 @@ public static class ServiceConfiguration
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICognitoGroupService, CognitoGroupService>();
         services.AddScoped<ICognitoUserService, CognitoUserService>();
-        services.AddScoped<IS3FileService, S3FileService>();
+        services.AddScoped<IFileStorageService, S3FileService>();
+        services.AddScoped<IUploadService, UploadService>();
 
         return services;
     }
