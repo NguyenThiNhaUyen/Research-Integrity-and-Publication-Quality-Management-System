@@ -1,0 +1,712 @@
+{
+  "info": {
+    "_postman_id": "70f18ad5-1fae-4ed8-9f3e-publication-quality-api",
+    "name": "Publication Quality System API",
+    "description": "Postman-ready API testing collection generated from the current ASP.NET Core controllers. JWT is required for every endpoint except actions explicitly marked AllowAnonymous because the app configures a fallback authenticated-user authorization policy.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"researcher@example.com\",\n  \"password\": \"P@ssw0rd123!\",\n  \"fullName\": \"Sample Researcher\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] },
+            "description": "AllowAnonymous. Request DTO: RegisterRequestDto. Response DTO: BaseResponse<AuthResponseDto>."
+          },
+          "response": [
+            { "name": "201 Created", "originalRequest": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"researcher@example.com\",\n  \"password\": \"P@ssw0rd123!\",\n  \"fullName\": \"Sample Researcher\"\n}" }, "url": { "raw": "{{base_url}}/api/auth/register", "host": ["{{base_url}}"], "path": ["api", "auth", "register"] } }, "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"code\": 201,\n  \"message\": \"Create Success\",\n  \"data\": {\n    \"accessToken\": \"jwt-access-token\",\n    \"refreshToken\": \"refresh-token\",\n    \"idToken\": \"id-token\",\n    \"tokenType\": \"Bearer\",\n    \"expiresIn\": 3600,\n    \"fullName\": \"Sample Researcher\",\n    \"email\": \"researcher@example.com\"\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" }
+          ]
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const payload = json.data || json;",
+                  "if (payload.accessToken) pm.environment.set(\"access_token\", payload.accessToken);",
+                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"researcher@example.com\",\n  \"password\": \"P@ssw0rd123!\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"] },
+            "description": "AllowAnonymous. Request DTO: LoginRequestDto. Response DTO: BaseResponse<AuthResponseDto>. Test script saves access_token and refresh_token."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"code\": 200,\n  \"message\": \"Login successfully\",\n  \"data\": {\n    \"accessToken\": \"jwt-access-token\",\n    \"refreshToken\": \"refresh-token\",\n    \"idToken\": \"id-token\",\n    \"tokenType\": \"Bearer\",\n    \"expiresIn\": 3600,\n    \"fullName\": \"Sample Researcher\",\n    \"email\": \"researcher@example.com\"\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" }
+          ]
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const payload = json.data || json;",
+                  "if (payload.accessToken) pm.environment.set(\"access_token\", payload.accessToken);",
+                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/refresh-token", "host": ["{{base_url}}"], "path": ["api", "auth", "refresh-token"] },
+            "description": "AllowAnonymous. Request DTO: RefreshTokenRequestDto. Response DTO: BaseResponse<AuthResponseDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"code\": 200,\n  \"message\": \"Token refreshed successfully\",\n  \"data\": {\n    \"accessToken\": \"jwt-access-token\",\n    \"refreshToken\": \"refresh-token\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accessToken\": \"{{access_token}}\"\n}" },
+            "url": { "raw": "{{base_url}}/api/auth/logout", "host": ["{{base_url}}"], "path": ["api", "auth", "logout"] },
+            "description": "AllowAnonymous. Request DTO: LogoutRequestDto. Response DTO: BaseResponse<object>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"code\": 200,\n  \"message\": \"Logout successfully\",\n  \"data\": null\n}" }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/auth/me", "host": ["{{base_url}}"], "path": ["api", "auth", "me"] },
+            "description": "JWT required. Request DTO: none. Response DTO: BaseResponse<CurrentUserDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"code\": 200,\n  \"message\": \"Current user retrieved successfully\",\n  \"data\": {\n    \"fullName\": \"Sample Researcher\",\n    \"email\": \"researcher@example.com\",\n    \"sub\": \"sample-user-id\",\n    \"authorities\": [\"ROLE_ADMIN\", \"ROLE_READ\"]\n  }\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Sample User\",\n  \"email\": \"user@example.com\",\n  \"password\": \"P@ssw0rd123!\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/users", "host": ["{{base_url}}"], "path": ["api", "lab-members", "users"] },
+            "description": "JWT required by fallback policy. No explicit permission policy. Request/response DTO: UserDto."
+          },
+          "response": [
+            { "name": "201 Created", "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": \"sample-user-id\",\n    \"fullName\": \"Sample User\",\n    \"email\": \"user@example.com\"\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get User By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "users", "{{user_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: user_id. Response DTO: UserDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": \"sample-user-id\",\n    \"fullName\": \"Sample User\",\n    \"email\": \"user@example.com\"\n  }\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fullName\": \"Updated User\",\n  \"email\": \"updated.user@example.com\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "users", "{{user_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: user_id. Request/response DTO: UserDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": \"sample-user-id\",\n    \"fullName\": \"Updated User\",\n    \"email\": \"updated.user@example.com\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "users", "{{user_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: user_id. Response DTO: BaseResponse<object>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "Create Role",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"ROLE_RESEARCHER\",\n  \"description\": \"Researcher role\",\n  \"permissions\": [\"PAPER_READ_OWN\"]\n}" },
+            "url": { "raw": "{{base_url}}/api/roles", "host": ["{{base_url}}"], "path": ["api", "roles"] },
+            "description": "JWT required by fallback policy. No explicit ROLE_CREATE policy. Request/response DTO: RoleDto."
+          },
+          "response": [
+            { "name": "201 Created", "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"ROLE_RESEARCHER\",\n    \"description\": \"Researcher role\",\n    \"permissions\": [\"PAPER_READ_OWN\"]\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get Roles",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles?page=0&size=20", "host": ["{{base_url}}"], "path": ["api", "roles"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "20" }] },
+            "description": "JWT required. Policy: ROLE_READ. Query params: page, size. Response DTO: List<RoleDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"ROLE_RESEARCHER\",\n      \"description\": \"Researcher role\",\n      \"permissions\": [\"PAPER_READ_OWN\"]\n    }\n  ]\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get Role By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles/{{role_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "{{role_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: role_id. Response DTO: RoleDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"ROLE_RESEARCHER\",\n    \"description\": \"Researcher role\",\n    \"permissions\": [\"PAPER_READ_OWN\"]\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"id\": {{role_id}},\n  \"name\": \"ROLE_RESEARCHER\",\n  \"description\": \"Updated researcher role\",\n  \"permissions\": [\"PAPER_READ_OWN\", \"PAPER_CREATE\"]\n}" },
+            "url": { "raw": "{{base_url}}/api/roles/{{role_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "{{role_id}}"] },
+            "description": "JWT required by fallback policy. No explicit ROLE_UPDATE policy. Path variable: role_id. Request/response DTO: RoleDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"ROLE_RESEARCHER\",\n    \"description\": \"Updated researcher role\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles/{{role_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "{{role_id}}"] },
+            "description": "JWT required by fallback policy. No explicit ROLE_DELETE policy. Path variable: role_id."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        },
+        {
+          "name": "Get User Roles",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "users", "{{user_id}}"] },
+            "description": "JWT required. Policy: ROLE_READ. Path variable: user_id. Response DTO: List<UserRoleDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"ROLE_RESEARCHER\",\n      \"permissions\": [\"PAPER_READ_OWN\"]\n    }\n  ]\n}" }
+          ]
+        },
+        {
+          "name": "Assign Role To User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles/users/{{user_id}}/{{role_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "users", "{{user_id}}", "{{role_id}}"] },
+            "description": "JWT required. Policy: ROLE_ASSIGN. Path variables: user_id, role_id. Response DTO: List<UserRoleDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"ROLE_RESEARCHER\",\n      \"permissions\": [\"PAPER_READ_OWN\"]\n    }\n  ]\n}" }
+          ]
+        },
+        {
+          "name": "Remove Role From User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/roles/users/{{user_id}}/{{role_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "users", "{{user_id}}", "{{role_id}}"] },
+            "description": "JWT required. Policy: ROLE_ASSIGN. Path variables: user_id, role_id. Response DTO: List<UserRoleDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": []\n}" }
+          ]
+        },
+        {
+          "name": "Replace User Roles",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"roleIds\": [1, 2]\n}" },
+            "url": { "raw": "{{base_url}}/api/roles/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "roles", "users", "{{user_id}}"] },
+            "description": "JWT required. Policy: ROLE_ASSIGN. Path variable: user_id. Request DTO: UpdateUserRolesDto. Response DTO: List<UserRoleDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"ROLE_RESEARCHER\",\n      \"permissions\": [\"PAPER_READ_OWN\"]\n    }\n  ]\n}" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Permissions",
+      "description": "No PermissionsController exists in the current codebase. Permission policies are defined from PermissionName enum."
+    },
+    {
+      "name": "Research Profiles",
+      "item": [
+        {
+          "name": "Create Research Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"avatarUrl\": \"https://example.com/avatar.png\",\n  \"institution\": \"Sample University\",\n  \"specialization\": \"Publication Integrity\",\n  \"orcid\": \"0000-0002-1825-0097\",\n  \"researchInterests\": \"Research integrity; publication quality\",\n  \"academicRank\": \"ASSOCIATE_PROFESSOR\",\n  \"status\": \"ACTIVE\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/profiles", "host": ["{{base_url}}"], "path": ["api", "lab-members", "profiles"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_PROFILE_CREATE policy. Request/response DTO: ResearchProfileDto."
+          },
+          "response": [
+            { "name": "201 Created", "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"userId\": \"sample-user-id\",\n    \"institution\": \"Sample University\",\n    \"specialization\": \"Publication Integrity\"\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get Research Profile By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/profiles/{{profile_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "profiles", "{{profile_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: profile_id. Response DTO: ResearchProfileDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"userId\": \"sample-user-id\",\n    \"institution\": \"Sample University\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Update Research Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"id\": {{profile_id}},\n  \"userId\": \"{{user_id}}\",\n  \"institution\": \"Updated University\",\n  \"specialization\": \"Research Quality\",\n  \"researchInterests\": \"Peer review; integrity checks\",\n  \"academicRank\": \"PROFESSOR\",\n  \"status\": \"ACTIVE\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/profiles/{{profile_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "profiles", "{{profile_id}}"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_PROFILE_UPDATE policy. Path variable: profile_id. Request/response DTO: ResearchProfileDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"userId\": \"sample-user-id\",\n    \"institution\": \"Updated University\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Delete Research Profile",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/profiles/{{profile_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "profiles", "{{profile_id}}"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_PROFILE_DELETE policy. Path variable: profile_id."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        },
+        {
+          "name": "Get Research Profile By User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/profiles/user/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "profiles", "user", "{{user_id}}"] },
+            "description": "JWT required. Policy: RESEARCH_PROFILE_READ. Path variable: user_id. Response DTO: ResearchProfileDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"userId\": \"sample-user-id\",\n    \"institution\": \"Sample University\"\n  }\n}" }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Research Groups",
+      "item": [
+        {
+          "name": "Create Research Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Integrity Lab\",\n  \"description\": \"Publication quality research group\",\n  \"researchTopics\": \"Integrity checks; reviewer response quality\",\n  \"activeProjects\": \"Publication QA workflow\",\n  \"specialization\": \"Research integrity\",\n  \"institution\": \"Sample University\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_GROUP_CREATE policy. Request/response DTO: ResearchGroupDto."
+          },
+          "response": [
+            { "name": "201 Created", "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Integrity Lab\",\n    \"institution\": \"Sample University\"\n  }\n}" },
+            { "name": "400 Validation Error", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Validation failed\",\n  \"errors\": []\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get Research Groups",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups?page=0&size=20", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups"], "query": [{ "key": "page", "value": "0" }, { "key": "size", "value": "20" }] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_READ. Query params: page, size. Response DTO: List<ResearchGroupDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"Integrity Lab\",\n      \"memberCount\": 3\n    }\n  ]\n}" }
+          ]
+        },
+        {
+          "name": "Get Research Group By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}"] },
+            "description": "JWT required by fallback policy. Path variable: group_id. Response DTO: ResearchGroupDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Integrity Lab\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Update Research Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"id\": {{group_id}},\n  \"name\": \"Integrity Lab Updated\",\n  \"description\": \"Updated group description\",\n  \"researchTopics\": \"Publication QA; internal review\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_GROUP_UPDATE policy. Path variable: group_id. Request/response DTO: ResearchGroupDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Integrity Lab Updated\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Delete Research Group",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}"] },
+            "description": "JWT required by fallback policy. No explicit RESEARCH_GROUP_DELETE policy. Path variable: group_id."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        },
+        {
+          "name": "Add Research Group Member",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": \"{{user_id}}\",\n  \"role\": \"MEMBER\",\n  \"status\": \"ACTIVE\",\n  \"responsibilities\": \"Internal review\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/members", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "members"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_MEMBER_MANAGE. Path variable: group_id. Request/response DTO: ResearchGroupMemberDto."
+          },
+          "response": [
+            { "name": "201 Created", "status": "Created", "code": 201, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"id\": 1,\n    \"userId\": \"sample-user-id\",\n    \"role\": \"MEMBER\",\n    \"status\": \"ACTIVE\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Get Research Group Members",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/members", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "members"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_READ. Path variable: group_id. Response DTO: List<ResearchGroupMemberDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"userId\": \"sample-user-id\",\n      \"role\": \"MEMBER\",\n      \"status\": \"ACTIVE\"\n    }\n  ]\n}" }
+          ]
+        },
+        {
+          "name": "Remove Research Group Member",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/members/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "members", "{{user_id}}"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_MEMBER_MANAGE. Path variables: group_id, user_id."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        },
+        {
+          "name": "Change Member Role",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"role\": \"REVIEWER\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/members/{{user_id}}/role", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "members", "{{user_id}}", "role"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_MEMBER_MANAGE. Path variables: group_id, user_id. Request/response DTO: ResearchGroupMemberDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"userId\": \"sample-user-id\",\n    \"role\": \"REVIEWER\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Update Member Status",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"INACTIVE\"\n}" },
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/members/{{user_id}}/status", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "members", "{{user_id}}", "status"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_MEMBER_MANAGE. Path variables: group_id, user_id. Request/response DTO: ResearchGroupMemberDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"userId\": \"sample-user-id\",\n    \"status\": \"INACTIVE\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Assign Group Leader",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PATCH",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/{{group_id}}/leader/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "{{group_id}}", "leader", "{{user_id}}"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_MEMBER_MANAGE. Path variables: group_id, user_id. Response DTO: ResearchGroupMemberDto."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"userId\": \"sample-user-id\",\n    \"role\": \"LEADER\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Get Groups By User",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/lab-members/research-groups/users/{{user_id}}", "host": ["{{base_url}}"], "path": ["api", "lab-members", "research-groups", "users", "{{user_id}}"] },
+            "description": "JWT required. Policy: RESEARCH_GROUP_READ. Path variable: user_id. Response DTO: List<ResearchGroupDto>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"Integrity Lab\"\n    }\n  ]\n}" }
+          ]
+        }
+      ]
+    },
+    { "name": "Papers", "description": "No controller/endpoints currently exist." },
+    {
+      "name": "Paper Versions",
+      "item": [
+        {
+          "name": "Create Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fileId\": {{file_id}},\n  \"versionName\": \"v2\",\n  \"changeLog\": \"Updated methodology\"\n}" },
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions"] },
+            "description": "JWT required. Policy: PAPER_VERSION_UPLOAD. Creates a paper version from an already uploaded fileId. Upload file first with POST /api/uploads."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Paper version created successfully\",\n  \"data\": {\n    \"id\": 1,\n    \"paperId\": 1,\n    \"versionNumber\": 2,\n    \"versionName\": \"v2\",\n    \"changeLog\": \"Updated methodology\",\n    \"fileId\": 1,\n    \"originalFileName\": \"paper-v2.pdf\",\n    \"fileKey\": \"paper-versions/sample.pdf\",\n    \"url\": \"paper-versions/sample.pdf\",\n    \"contentType\": \"application/pdf\",\n    \"size\": 204800,\n    \"uploadedBy\": \"sample-user-id\",\n    \"deleted\": false\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Get Paper Versions",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ. Lists non-deleted versions for a paper."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Paper versions retrieved successfully\",\n  \"data\": []\n}" }
+          ]
+        },
+        {
+          "name": "Get Paper Version By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"versionName\": \"v2 revised\",\n  \"changeLog\": \"Updated methodology and references\"\n}" },
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_UPDATE. Updates version metadata only."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_DELETE. Soft deletes the version."
+          },
+          "response": []
+        },
+        {
+          "name": "Restore Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}/restore", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}", "restore"] },
+            "description": "JWT required. Policy: PAPER_VERSION_RESTORE. Restores a soft-deleted paper version."
+          },
+          "response": []
+        }
+      ]
+    },
+    { "name": "Authors", "description": "No controller/endpoints currently exist." },
+    { "name": "Quality Reports", "description": "No controller/endpoints currently exist." },
+    { "name": "Integrity Reports", "description": "No controller/endpoints currently exist." },
+    { "name": "Internal Reviews", "description": "No controller/endpoints currently exist." },
+    { "name": "Reviewer Comments", "description": "No controller/endpoints currently exist." },
+    { "name": "Reviewer Responses", "description": "No controller/endpoints currently exist." },
+    { "name": "Venues", "description": "No controller/endpoints currently exist." },
+    { "name": "Venue Recommendations", "description": "No controller/endpoints currently exist." },
+    { "name": "Submissions", "description": "No controller/endpoints currently exist." },
+    { "name": "Notifications", "description": "No controller/endpoints currently exist." },
+    { "name": "Dashboard", "description": "No controller/endpoints currently exist." },
+    { "name": "Audit Logs", "description": "No controller/endpoints currently exist." },
+    {
+      "name": "Files",
+      "item": [
+        {
+          "name": "Upload File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const payload = json.data || json;",
+                  "if (payload.fileId) pm.environment.set(\"file_id\", payload.fileId);",
+                  "if (payload.key) pm.environment.set(\"file_key\", payload.key);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }, { "key": "type", "value": "PAPER_VERSION", "type": "text" }] },
+            "url": { "raw": "{{base_url}}/api/uploads", "host": ["{{base_url}}"], "path": ["api", "uploads"] },
+            "description": "JWT required. Policy: FILE_UPLOAD. Multipart/form-data fields: file, type. Type examples: PAPER, PAPER_VERSION, AVATAR, DOCUMENT, TEMP, OTHER. Response DTO: UploadedFileResponse. Test script saves file_id and file_key."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Upload file successfully\",\n  \"data\": {\n    \"fileId\": 1,\n    \"fileName\": \"paper-v2.pdf\",\n    \"url\": \"paper-versions/sample.pdf\",\n    \"key\": \"paper-versions/sample.pdf\",\n    \"contentType\": \"application/pdf\",\n    \"size\": 204800\n  }\n}" },
+            { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get File Download URL",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/files/{{file_id}}/download-url", "host": ["{{base_url}}"], "path": ["api", "files", "{{file_id}}", "download-url"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ. Generates a presigned download URL for an uploaded file."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Download URL generated successfully\",\n  \"data\": {\n    \"fileId\": 1,\n    \"fileKey\": \"paper-versions/sample.pdf\",\n    \"url\": \"https://s3-presigned-url.example.com\",\n    \"expiresAt\": \"2026-05-26T06:30:00Z\"\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Delete S3 File",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/s3?fileKey={{file_key}}", "host": ["{{base_url}}"], "path": ["api", "s3"], "query": [{ "key": "fileKey", "value": "{{file_key}}" }] },
+            "description": "JWT required. Policy: FILE_DELETE. Query param: fileKey. Response DTO: BaseResponse<object>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": null\n}" }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: \"Accept\", value: \"application/json\" });"
+        ]
+      }
+    }
+  ]
+}

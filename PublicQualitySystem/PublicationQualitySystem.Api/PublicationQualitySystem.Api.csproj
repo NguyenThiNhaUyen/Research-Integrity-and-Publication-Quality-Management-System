@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>8403e9e2-790c-46bd-9040-be1bb10e4ef7</UserSecretsId>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.18">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PublicationQualitySystem.Application\PublicationQualitySystem.Application.csproj" />
+    <ProjectReference Include="..\PublicationQualitySystem.Infrastructure\PublicationQualitySystem.Infrastructure.csproj" />
+    <ProjectReference Include="..\PublicationQualitySystem.Shared\PublicationQualitySystem.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
