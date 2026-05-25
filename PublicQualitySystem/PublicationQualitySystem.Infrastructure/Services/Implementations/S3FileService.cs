@@ -12,7 +12,7 @@ public class S3FileService(IAmazonS3 s3, IOptions<S3Options> options) : IFileSto
 {
     private string Bucket => options.Value.Bucket ?? string.Empty;
 
-    public async Task<S3FileResponseDto> UploadAsync(FileUploadRequest file, string folder)
+    public async Task<string> UploadAsync(FileUploadRequest file, string folder)
     {
         try
         {
@@ -25,7 +25,7 @@ public class S3FileService(IAmazonS3 s3, IOptions<S3Options> options) : IFileSto
                 InputStream = file.Content,
                 ContentType = file.ContentType
             });
-            return new S3FileResponseDto { FileKey = fileKey };
+            return fileKey;
         }
         catch
         {
@@ -42,6 +42,24 @@ public class S3FileService(IAmazonS3 s3, IOptions<S3Options> options) : IFileSto
         catch
         {
             throw new AppException(UploadFileErrorCode.DeleteFileFailed);
+        }
+    }
+
+    public string GeneratePresignedDownloadUrl(string fileKey, DateTime expiresAt)
+    {
+        try
+        {
+            return s3.GetPreSignedURL(new GetPreSignedUrlRequest
+            {
+                BucketName = Bucket,
+                Key = fileKey,
+                Expires = expiresAt,
+                Verb = HttpVerb.GET
+            });
+        }
+        catch
+        {
+            throw new AppException(UploadFileErrorCode.GenerateDownloadUrlFailed);
         }
     }
 }

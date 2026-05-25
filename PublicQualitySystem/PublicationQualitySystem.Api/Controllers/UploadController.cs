@@ -14,7 +14,7 @@ public class UploadController(IUploadService uploadService) : ApiBaseController
     [HttpPost]
     [Authorize(Policy = "FILE_UPLOAD")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<BaseResponse<S3FileResponseDto>>> Upload(
+    public async Task<ActionResult<BaseResponse<UploadedFileResponse>>> Upload(
         IFormFile file,
         [FromForm] UploadType type) =>
         OkResponse(await uploadService.UploadAsync(new FileUploadRequest

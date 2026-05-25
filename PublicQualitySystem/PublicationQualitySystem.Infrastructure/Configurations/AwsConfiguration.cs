@@ -29,8 +29,10 @@ public static class AwsConfiguration
         });
         services.Configure<S3Options>(options =>
         {
-            options.Bucket = ConfigurationValueResolver.Resolve(configuration["Aws:S3:Bucket"]);
+            options.Bucket = ConfigurationValueResolver.Resolve(configuration["Aws:S3:Bucket"])
+                ?? Environment.GetEnvironmentVariable("AWS_S3_BUCKET");
         });
+        services.Configure<ManuscriptUploadOptions>(configuration.GetSection("Upload:Manuscript"));
 
         services.AddSingleton<IAmazonCognitoIdentityProvider>(provider =>
         {

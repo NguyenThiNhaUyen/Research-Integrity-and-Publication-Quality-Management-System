@@ -548,7 +548,83 @@
       ]
     },
     { "name": "Papers", "description": "No controller/endpoints currently exist." },
-    { "name": "Paper Versions", "description": "No controller/endpoints currently exist." },
+    {
+      "name": "Paper Versions",
+      "item": [
+        {
+          "name": "Create Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fileId\": {{file_id}},\n  \"versionName\": \"v2\",\n  \"changeLog\": \"Updated methodology\"\n}" },
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions"] },
+            "description": "JWT required. Policy: PAPER_VERSION_UPLOAD. Creates a paper version from an already uploaded fileId. Upload file first with POST /api/uploads."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Paper version created successfully\",\n  \"data\": {\n    \"id\": 1,\n    \"paperId\": 1,\n    \"versionNumber\": 2,\n    \"versionName\": \"v2\",\n    \"changeLog\": \"Updated methodology\",\n    \"fileId\": 1,\n    \"originalFileName\": \"paper-v2.pdf\",\n    \"fileKey\": \"paper-versions/sample.pdf\",\n    \"url\": \"paper-versions/sample.pdf\",\n    \"contentType\": \"application/pdf\",\n    \"size\": 204800,\n    \"uploadedBy\": \"sample-user-id\",\n    \"deleted\": false\n  }\n}" }
+          ]
+        },
+        {
+          "name": "Get Paper Versions",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ. Lists non-deleted versions for a paper."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Paper versions retrieved successfully\",\n  \"data\": []\n}" }
+          ]
+        },
+        {
+          "name": "Get Paper Version By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"versionName\": \"v2 revised\",\n  \"changeLog\": \"Updated methodology and references\"\n}" },
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_UPDATE. Updates version metadata only."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}"] },
+            "description": "JWT required. Policy: PAPER_VERSION_DELETE. Soft deletes the version."
+          },
+          "response": []
+        },
+        {
+          "name": "Restore Paper Version",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/papers/{{paper_id}}/versions/{{version_id}}/restore", "host": ["{{base_url}}"], "path": ["api", "papers", "{{paper_id}}", "versions", "{{version_id}}", "restore"] },
+            "description": "JWT required. Policy: PAPER_VERSION_RESTORE. Restores a soft-deleted paper version."
+          },
+          "response": []
+        }
+      ]
+    },
     { "name": "Authors", "description": "No controller/endpoints currently exist." },
     { "name": "Quality Reports", "description": "No controller/endpoints currently exist." },
     { "name": "Integrity Reports", "description": "No controller/endpoints currently exist." },
@@ -566,17 +642,44 @@
       "item": [
         {
           "name": "Upload File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "const payload = json.data || json;",
+                  "if (payload.fileId) pm.environment.set(\"file_id\", payload.fileId);",
+                  "if (payload.key) pm.environment.set(\"file_key\", payload.key);"
+                ]
+              }
+            }
+          ],
           "request": {
             "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
             "method": "POST",
             "header": [],
-            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }, { "key": "type", "value": "ResearchPaper", "type": "text" }] },
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }, { "key": "type", "value": "PAPER_VERSION", "type": "text" }] },
             "url": { "raw": "{{base_url}}/api/uploads", "host": ["{{base_url}}"], "path": ["api", "uploads"] },
-            "description": "JWT required. Policy: FILE_UPLOAD. Multipart/form-data fields: file, type. Response DTO: S3FileResponseDto."
+            "description": "JWT required. Policy: FILE_UPLOAD. Multipart/form-data fields: file, type. Type examples: PAPER, PAPER_VERSION, AVATAR, DOCUMENT, TEMP, OTHER. Response DTO: UploadedFileResponse. Test script saves file_id and file_key."
           },
           "response": [
-            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Success\",\n  \"data\": {\n    \"fileKey\": \"uploads/sample.pdf\"\n  }\n}" },
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Upload file successfully\",\n  \"data\": {\n    \"fileId\": 1,\n    \"fileName\": \"paper-v2.pdf\",\n    \"url\": \"paper-versions/sample.pdf\",\n    \"key\": \"paper-versions/sample.pdf\",\n    \"contentType\": \"application/pdf\",\n    \"size\": 204800\n  }\n}" },
             { "name": "401 Unauthorized", "status": "Unauthorized", "code": 401, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"Unauthorized\"\n}" }
+          ]
+        },
+        {
+          "name": "Get File Download URL",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/files/{{file_id}}/download-url", "host": ["{{base_url}}"], "path": ["api", "files", "{{file_id}}", "download-url"] },
+            "description": "JWT required. Policy: PAPER_VERSION_READ. Generates a presigned download URL for an uploaded file."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Download URL generated successfully\",\n  \"data\": {\n    \"fileId\": 1,\n    \"fileKey\": \"paper-versions/sample.pdf\",\n    \"url\": \"https://s3-presigned-url.example.com\",\n    \"expiresAt\": \"2026-05-26T06:30:00Z\"\n  }\n}" }
           ]
         },
         {

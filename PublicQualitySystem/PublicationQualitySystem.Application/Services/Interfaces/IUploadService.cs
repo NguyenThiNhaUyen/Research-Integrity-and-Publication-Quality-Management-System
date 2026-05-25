@@ -5,5 +5,5 @@ namespace PublicationQualitySystem.Application.Services.Interfaces;
 
 public interface IUploadService
 {
-    Task<S3FileResponseDto> UploadAsync(FileUploadRequest file, UploadType type);
+    Task<UploadedFileResponse> UploadAsync(FileUploadRequest file, UploadType type);
 }
