@@ -14,42 +14,38 @@ public class PaperVersionRepository(ApplicationDbContext db) : IPaperVersionRepo
 
     public Task<PaperVersion?> FindByIdWithPaperAsync(long id) =>
         db.PaperVersions
-            .Include(v => v.UploadedFile)
             .Include(v => v.Paper)
-            .ThenInclude(p => p.ResearchGroup)
-            .ThenInclude(g => g!.Memberships)
+            .Include(v => v.UploadedFile)
             .FirstOrDefaultAsync(v => v.Id == id && !v.Deleted);
 
     public Task<PaperVersion?> FindByIdWithPaperIncludingDeletedAsync(long id) =>
         db.PaperVersions
-            .Include(v => v.UploadedFile)
             .Include(v => v.Paper)
-            .ThenInclude(p => p.ResearchGroup)
-            .ThenInclude(g => g!.Memberships)
+            .Include(v => v.UploadedFile)
             .FirstOrDefaultAsync(v => v.Id == id);
 
     public Task<PaperVersion?> FindByPaperAndIdAsync(long paperId, long id) =>
         db.PaperVersions
-            .Include(v => v.UploadedFile)
             .Include(v => v.Paper)
             .ThenInclude(p => p.ResearchGroup)
             .ThenInclude(g => g!.Memberships)
+            .Include(v => v.UploadedFile)
             .FirstOrDefaultAsync(v => v.PaperId == paperId && v.Id == id && !v.Deleted);
 
     public Task<PaperVersion?> FindByPaperAndIdIncludingDeletedAsync(long paperId, long id) =>
         db.PaperVersions
-            .Include(v => v.UploadedFile)
             .Include(v => v.Paper)
             .ThenInclude(p => p.ResearchGroup)
             .ThenInclude(g => g!.Memberships)
+            .Include(v => v.UploadedFile)
             .FirstOrDefaultAsync(v => v.PaperId == paperId && v.Id == id);
 
     public Task<PaperVersion?> FindByUploadedFileIdWithPaperAsync(long fileId) =>
         db.PaperVersions
-            .Include(v => v.UploadedFile)
             .Include(v => v.Paper)
             .ThenInclude(p => p.ResearchGroup)
             .ThenInclude(g => g!.Memberships)
+            .Include(v => v.UploadedFile)
             .FirstOrDefaultAsync(v => v.UploadedFileId == fileId && !v.Deleted);
 
     public Task<List<PaperVersion>> FindByPaperIdAsync(long paperId) =>
@@ -59,7 +55,9 @@ public class PaperVersionRepository(ApplicationDbContext db) : IPaperVersionRepo
             .OrderByDescending(v => v.VersionNumber)
             .ToListAsync();
 
-    public async Task AddAsync(PaperVersion version) => await db.PaperVersions.AddAsync(version);
+    public async Task AddAsync(PaperVersion version) =>
+        await db.PaperVersions.AddAsync(version);
 
-    public Task SaveChangesAsync() => db.SaveChangesAsync();
+    public Task SaveChangesAsync() =>
+        db.SaveChangesAsync();
 }

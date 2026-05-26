@@ -8,8 +8,20 @@ using PublicationQualitySystem.Shared.Common;
 namespace PublicationQualitySystem.Api.Controllers;
 
 [Route("api/files")]
-public class FileController(IPaperVersionService paperVersionService) : ApiBaseController
+public class FileController(
+    IPaperVersionService paperVersionService,
+    IUploadService uploadService) : ApiBaseController
 {
+    [HttpGet]
+    [Authorize]
+    public async Task<ActionResult<BaseResponse<List<UploadedFileResponse>>>> GetFiles() =>
+        OkResponse(await uploadService.GetFilesAsync(), "Files retrieved successfully");
+
+    [HttpGet("{fileId:long}")]
+    [Authorize]
+    public async Task<ActionResult<BaseResponse<UploadedFileResponse>>> GetFile(long fileId) =>
+        OkResponse(await uploadService.GetFileAsync(fileId), "File retrieved successfully");
+
     [HttpGet("{fileId:long}/download-url")]
     [Authorize(Policy = "PAPER_VERSION_READ")]
     public async Task<ActionResult<BaseResponse<DownloadUrlResponseDto>>> GetDownloadUrl(long fileId) =>

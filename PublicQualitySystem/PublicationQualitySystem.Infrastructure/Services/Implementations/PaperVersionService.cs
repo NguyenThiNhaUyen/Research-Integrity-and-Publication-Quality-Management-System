@@ -60,6 +60,8 @@ public class PaperVersionService(
         paper.CurrentVersion = versionNumber;
         paper.FileUrl = uploadedFile.Url;
         paper.FileType = version.FileType;
+        paper.S3Bucket = uploadedFile.S3Bucket;
+        paper.S3Key = string.IsNullOrWhiteSpace(uploadedFile.S3Key) ? uploadedFile.FileKey : uploadedFile.S3Key;
 
         await versions.AddAsync(version);
         await versions.SaveChangesAsync();

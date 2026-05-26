@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PublicationQualitySystem.Infrastructure.Configurations;
@@ -11,9 +12,11 @@ using PublicationQualitySystem.Infrastructure.Configurations;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260526021213_AddUploadedFilesTable")]
+    partial class AddUploadedFilesTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -118,16 +121,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     b.Property<long?>("ResearchGroupId")
                         .HasColumnType("bigint")
                         .HasColumnName("research_group_id");
-
-                    b.Property<string>("S3Bucket")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("s3_bucket");
-
-                    b.Property<string>("S3Key")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("s3_key");
 
                     b.Property<string>("SubmissionStatus")
                         .IsRequired()
@@ -639,18 +632,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("original_file_name");
 
-                    b.Property<string>("S3Bucket")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("s3_bucket");
-
-                    b.Property<string>("S3Key")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("s3_key");
-
                     b.Property<long>("Size")
                         .HasColumnType("bigint")
                         .HasColumnName("size");
@@ -682,8 +663,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
 
                     b.HasIndex("FileKey")
                         .IsUnique();
-
-                    b.HasIndex("S3Key");
 
                     b.HasIndex("UploadedBy");
 

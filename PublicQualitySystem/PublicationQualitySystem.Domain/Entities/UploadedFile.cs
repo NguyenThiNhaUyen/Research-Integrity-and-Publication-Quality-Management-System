@@ -8,6 +8,8 @@ public class UploadedFile : BaseEntity
     public string OriginalFileName { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string FileKey { get; set; } = string.Empty;
+    public string S3Bucket { get; set; } = string.Empty;
+    public string S3Key { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public long Size { get; set; }
