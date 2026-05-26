@@ -6,4 +6,6 @@ namespace PublicationQualitySystem.Application.Services.Interfaces;
 public interface IUploadService
 {
     Task<UploadedFileResponse> UploadAsync(FileUploadRequest file, UploadType type);
+    Task<List<UploadedFileResponse>> GetFilesAsync();
+    Task<UploadedFileResponse> GetFileAsync(long fileId);
 }

@@ -35,7 +35,9 @@
                   "const json = pm.response.json();",
                   "const payload = json.data || json;",
                   "if (payload.accessToken) pm.environment.set(\"access_token\", payload.accessToken);",
-                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);"
+                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);",
+                  "if (payload.accessToken) pm.collectionVariables.set(\"access_token\", payload.accessToken);",
+                  "if (payload.refreshToken) pm.collectionVariables.set(\"refresh_token\", payload.refreshToken);"
                 ]
               }
             }
@@ -64,7 +66,9 @@
                   "const json = pm.response.json();",
                   "const payload = json.data || json;",
                   "if (payload.accessToken) pm.environment.set(\"access_token\", payload.accessToken);",
-                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);"
+                  "if (payload.refreshToken) pm.environment.set(\"refresh_token\", payload.refreshToken);",
+                  "if (payload.accessToken) pm.collectionVariables.set(\"access_token\", payload.accessToken);",
+                  "if (payload.refreshToken) pm.collectionVariables.set(\"refresh_token\", payload.refreshToken);"
                 ]
               }
             }
@@ -641,6 +645,32 @@
       "name": "Files",
       "item": [
         {
+          "name": "Get Files",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/files", "host": ["{{base_url}}"], "path": ["api", "files"] },
+            "description": "JWT required. Lists uploaded files so FE can choose a file for OCR extraction. Response DTO: BaseResponse<List<UploadedFileResponse>>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"Files retrieved successfully\",\n  \"data\": [\n    {\n      \"fileId\": 1,\n      \"fileName\": \"paper-v2.pdf\",\n      \"url\": \"paper-versions/sample.pdf\",\n      \"key\": \"paper-versions/sample.pdf\",\n      \"contentType\": \"application/pdf\",\n      \"size\": 204800\n    }\n  ]\n}" }
+          ]
+        },
+        {
+          "name": "Get File By Id",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/api/files/{{file_id}}", "host": ["{{base_url}}"], "path": ["api", "files", "{{file_id}}"] },
+            "description": "JWT required. Gets uploaded file metadata by file_id. Response DTO: BaseResponse<UploadedFileResponse>."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"message\": \"File retrieved successfully\",\n  \"data\": {\n    \"fileId\": 1,\n    \"fileName\": \"paper-v2.pdf\",\n    \"url\": \"paper-versions/sample.pdf\",\n    \"key\": \"paper-versions/sample.pdf\",\n    \"contentType\": \"application/pdf\",\n    \"size\": 204800\n  }\n}" }
+          ]
+        },
+        {
           "name": "Upload File",
           "event": [
             {
@@ -651,7 +681,9 @@
                   "const json = pm.response.json();",
                   "const payload = json.data || json;",
                   "if (payload.fileId) pm.environment.set(\"file_id\", payload.fileId);",
-                  "if (payload.key) pm.environment.set(\"file_key\", payload.key);"
+                  "if (payload.key) pm.environment.set(\"file_key\", payload.key);",
+                  "if (payload.fileId) pm.collectionVariables.set(\"file_id\", payload.fileId);",
+                  "if (payload.key) pm.collectionVariables.set(\"file_key\", payload.key);"
                 ]
               }
             }
@@ -696,7 +728,36 @@
           ]
         }
       ]
+    },
+    {
+      "name": "OCR",
+      "item": [
+        {
+          "name": "Extract Text From File",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fileId\": {{file_id}}\n}" },
+            "url": { "raw": "{{base_url}}/api/ocr/extract-text", "host": ["{{base_url}}"], "path": ["api", "ocr", "extract-text"] },
+            "description": "JWT required. Extracts text from the selected uploaded file by file_id. FE flow: GET /api/files, choose fileId, then call this request."
+          },
+          "response": [
+            { "name": "200 Success", "status": "OK", "code": 200, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": true,\n  \"fileId\": 1,\n  \"objectKey\": \"paper-versions/sample.pdf\",\n  \"text\": \"Extracted OCR text...\"\n}" },
+            { "name": "400 Bad Request", "status": "Bad Request", "code": 400, "header": [{ "key": "Content-Type", "value": "application/json" }], "body": "{\n  \"success\": false,\n  \"message\": \"FileId is required\"\n}" }
+          ]
+        }
+      ]
     }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "https://localhost:7210", "type": "string" },
+    { "key": "access_token", "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "paper_id", "value": "1", "type": "string" },
+    { "key": "file_id", "value": "1", "type": "string" },
+    { "key": "file_key", "value": "uploads/sample.pdf", "type": "string" },
+    { "key": "version_id", "value": "1", "type": "string" }
   ],
   "event": [
     {

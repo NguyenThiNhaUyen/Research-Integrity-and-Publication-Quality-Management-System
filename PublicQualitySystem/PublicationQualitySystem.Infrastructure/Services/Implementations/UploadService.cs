@@ -4,6 +4,7 @@ using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
+using PublicationQualitySystem.Shared.Constants;
 using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Infrastructure.Security;
 using PublicationQualitySystem.Shared.Exceptions;
@@ -14,6 +15,8 @@ public class UploadService(
     IFileStorageService fileStorageService,
     IUploadedFileRepository uploadedFiles,
     ICurrentUserProvider currentUser,
+    IOptions<S3Options> s3Options,
+    IOptions<AwsOptions> awsOptions,
     IOptions<ManuscriptUploadOptions> uploadOptions) : IUploadService
 {
     private static readonly IReadOnlySet<string> PaperExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -85,12 +88,18 @@ public class UploadService(
         }
 
         var fileKey = await fileStorageService.UploadAsync(file, GetFolder(type));
+        var bucket = s3Options.Value.Bucket ?? string.Empty;
+        var region = awsOptions.Value.Region ?? AwsConstants.DefaultRegion;
+        var fileUrl = BuildS3Url(bucket, region, fileKey);
+
         var uploadedFile = new UploadedFile
         {
             OriginalFileName = file.FileName,
             FileName = Path.GetFileName(fileKey),
             FileKey = fileKey,
-            Url = fileKey,
+            S3Bucket = bucket,
+            S3Key = fileKey,
+            Url = fileUrl,
             ContentType = file.ContentType,
             Size = file.Length,
             UploadType = type,
@@ -100,15 +109,20 @@ public class UploadService(
         await uploadedFiles.AddAsync(uploadedFile);
         await uploadedFiles.SaveChangesAsync();
 
-        return new UploadedFileResponse
-        {
-            FileId = uploadedFile.Id,
-            FileName = uploadedFile.OriginalFileName,
-            Url = uploadedFile.Url,
-            Key = uploadedFile.FileKey,
-            ContentType = uploadedFile.ContentType,
-            Size = uploadedFile.Size
-        };
+        return ToResponse(uploadedFile);
+    }
+
+    public async Task<List<UploadedFileResponse>> GetFilesAsync() =>
+        (await uploadedFiles.GetAllAsync())
+            .Select(ToResponse)
+            .ToList();
+
+    public async Task<UploadedFileResponse> GetFileAsync(long fileId)
+    {
+        var file = await uploadedFiles.FindByIdAsync(fileId)
+            ?? throw new AppException(UploadFileErrorCode.FileNotFound);
+
+        return ToResponse(file);
     }
 
     private static IReadOnlySet<string> GetAllowedExtensions(UploadType type) => type switch
@@ -140,5 +154,31 @@ public class UploadService(
         UploadType.TEMP => "temp",
         UploadType.OTHER => "others",
         _ => "others"
+    };
+
+    private static string BuildS3Url(string bucket, string region, string key)
+    {
+        if (string.IsNullOrWhiteSpace(bucket))
+        {
+            return key;
+        }
+
+        var escapedKey = string.Join("/", key.Split('/').Select(Uri.EscapeDataString));
+        return region.Equals("us-east-1", StringComparison.OrdinalIgnoreCase)
+            ? $"https://{bucket}.s3.amazonaws.com/{escapedKey}"
+            : $"https://{bucket}.s3.{region}.amazonaws.com/{escapedKey}";
+    }
+
+    private static UploadedFileResponse ToResponse(UploadedFile file) => new()
+    {
+        FileId = file.Id,
+        FileName = file.OriginalFileName,
+        Url = file.Url,
+        Key = file.FileKey,
+        S3Bucket = file.S3Bucket,
+        S3Key = string.IsNullOrWhiteSpace(file.S3Key) ? file.FileKey : file.S3Key,
+        ContentType = file.ContentType,
+        FileType = Path.GetExtension(file.OriginalFileName),
+        Size = file.Size
     };
 }
