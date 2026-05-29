@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Paper> Papers => Set<Paper>();
     public DbSet<PaperAuthor> PaperAuthors => Set<PaperAuthor>();
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
+    public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -115,8 +116,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.ResearchField).HasColumnName("research_field");
             entity.Property(x => x.FileUrl).HasColumnName("file_url");
             entity.Property(x => x.FileType).HasColumnName("file_type");
+            entity.Property(x => x.S3Bucket).HasColumnName("s3_bucket").HasMaxLength(255);
+            entity.Property(x => x.S3Key).HasColumnName("s3_key").HasMaxLength(1000);
+            entity.Property(x => x.OwnerUserId).HasColumnName("owner_user_id").HasMaxLength(100);
+            entity.Property(x => x.ResearchGroupId).HasColumnName("research_group_id");
             entity.Property(x => x.CurrentVersion).HasColumnName("current_version");
             entity.Property(x => x.SubmissionStatus).HasColumnName("submission_status").HasConversion<string>();
+            entity.HasOne(x => x.OwnerUser).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ResearchGroup).WithMany().HasForeignKey(x => x.ResearchGroupId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<PaperAuthor>(entity =>
@@ -130,10 +137,39 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<PaperVersion>(entity =>
         {
             entity.ToTable("paper_versions");
+            entity.Property(x => x.UploadedFileId).HasColumnName("uploaded_file_id");
             entity.Property(x => x.VersionNumber).HasColumnName("version_number");
+            entity.Property(x => x.VersionName).HasColumnName("version_name").HasMaxLength(255);
+            entity.Property(x => x.ChangeLog).HasColumnName("change_log").HasColumnType("text");
             entity.Property(x => x.FileUrl).HasColumnName("file_url").IsRequired();
             entity.Property(x => x.FileType).HasColumnName("file_type");
+            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.FileKey).HasColumnName("file_key").IsRequired().HasMaxLength(1000);
+            entity.Property(x => x.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Size).HasColumnName("size");
+            entity.Property(x => x.UploadedBy).HasColumnName("uploaded_by").HasMaxLength(100);
             entity.HasOne(x => x.Paper).WithMany(x => x.Versions).HasForeignKey(x => x.PaperId);
+            entity.HasOne(x => x.UploadedFile).WithMany(x => x.PaperVersions).HasForeignKey(x => x.UploadedFileId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.UploadedByUser).WithMany().HasForeignKey(x => x.UploadedBy).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.PaperId, x.VersionNumber }).IsUnique();
+        });
+
+        modelBuilder.Entity<UploadedFile>(entity =>
+        {
+            entity.ToTable("uploaded_files");
+            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.FileName).HasColumnName("file_name").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.FileKey).HasColumnName("file_key").IsRequired().HasMaxLength(1000);
+            entity.Property(x => x.S3Bucket).HasColumnName("s3_bucket").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.S3Key).HasColumnName("s3_key").IsRequired().HasMaxLength(1000);
+            entity.Property(x => x.Url).HasColumnName("url").IsRequired().HasMaxLength(1000);
+            entity.Property(x => x.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Size).HasColumnName("size");
+            entity.Property(x => x.UploadType).HasColumnName("upload_type").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.UploadedBy).HasColumnName("uploaded_by").HasMaxLength(100);
+            entity.HasIndex(x => x.FileKey).IsUnique();
+            entity.HasIndex(x => x.S3Key);
+            entity.HasOne(x => x.UploadedByUser).WithMany().HasForeignKey(x => x.UploadedBy).OnDelete(DeleteBehavior.Restrict);
         });
     }
 

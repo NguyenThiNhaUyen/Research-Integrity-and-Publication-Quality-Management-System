@@ -2,9 +2,10 @@ namespace PublicationQualitySystem.Domain.Enums;
 
 public enum UploadType
 {
-    ResearchPaper,
-    Avatar,
-    ResearchGroupLogo,
-    Evidence,
-    Other
+    PAPER,
+    PAPER_VERSION,
+    AVATAR,
+    DOCUMENT,
+    TEMP,
+    OTHER
 }

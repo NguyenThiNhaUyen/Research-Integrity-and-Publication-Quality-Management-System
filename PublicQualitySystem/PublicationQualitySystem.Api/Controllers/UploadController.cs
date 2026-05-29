@@ -6,6 +6,7 @@ using PublicationQualitySystem.Application.DTOs.File.Requests;
 using PublicationQualitySystem.Application.DTOs.File.Responses;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Application.Services.Interfaces;
+using PublicationQualitySystem.Application.DTOs.File;
 
 namespace PublicationQualitySystem.Api.Controllers;
 
@@ -15,7 +16,7 @@ public class UploadController(IUploadService uploadService) : ApiBaseController
     [HttpPost]
     [Authorize(Policy = "FILE_UPLOAD")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<BaseResponse<S3FileResponseDto>>> Upload(
+    public async Task<ActionResult<BaseResponse<UploadedFileResponse>>> Upload(
         IFormFile file,
         [FromForm] UploadType type) =>
         OkResponse(await uploadService.UploadAsync(new FileUploadRequestDto
@@ -26,3 +27,4 @@ public class UploadController(IUploadService uploadService) : ApiBaseController
             Content = file.OpenReadStream()
         }, type), "Upload file successfully");
 }
+

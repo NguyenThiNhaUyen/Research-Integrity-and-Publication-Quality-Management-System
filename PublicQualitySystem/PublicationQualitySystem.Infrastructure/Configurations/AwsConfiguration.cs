@@ -2,6 +2,8 @@ using Amazon;
 using Amazon.CognitoIdentityProvider;
 using Amazon.Runtime;
 using Amazon.S3;
+using Amazon.SecurityToken;
+using Amazon.Textract;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Shared.Constants;
 using PublicationQualitySystem.Shared.Extensions;
@@ -18,6 +20,8 @@ public static class AwsConfiguration
             options.AccessKey = ConfigurationValueResolver.Resolve(configuration["Aws:AccessKey"]);
             options.SecretKey = ConfigurationValueResolver.Resolve(configuration["Aws:SecretKey"]);
             options.Region = ConfigurationValueResolver.Resolve(configuration["Aws:Region"]);
+            options.ExpectedCallerArn = ConfigurationValueResolver.Resolve(configuration["Aws:ExpectedCallerArn"])
+                ?? Environment.GetEnvironmentVariable("AWS_EXPECTED_CALLER_ARN");
         });
         services.Configure<CognitoOptions>(options =>
         {
@@ -29,8 +33,10 @@ public static class AwsConfiguration
         });
         services.Configure<S3Options>(options =>
         {
-            options.Bucket = ConfigurationValueResolver.Resolve(configuration["Aws:S3:Bucket"]);
+            options.Bucket = ConfigurationValueResolver.Resolve(configuration["Aws:S3:Bucket"])
+                ?? Environment.GetEnvironmentVariable("AWS_S3_BUCKET");
         });
+        services.Configure<ManuscriptUploadOptions>(configuration.GetSection("Upload:Manuscript"));
 
         services.AddSingleton<IAmazonCognitoIdentityProvider>(provider =>
         {
@@ -49,6 +55,24 @@ public static class AwsConfiguration
             var region = RegionEndpoint.GetBySystemName(awsOptions.Region ?? AwsConstants.DefaultRegion);
             var credentials = CreateAwsCredentials(awsOptions);
             return credentials is null ? new AmazonS3Client(region) : new AmazonS3Client(credentials, region);
+        });
+
+        services.AddSingleton<IAmazonTextract>(provider =>
+        {
+            var awsOptions = provider.GetRequiredService<IOptions<AwsOptions>>().Value;
+            var region = RegionEndpoint.GetBySystemName(awsOptions.Region ?? AwsConstants.DefaultRegion);
+            var credentials = CreateAwsCredentials(awsOptions);
+            return credentials is null ? new AmazonTextractClient(region) : new AmazonTextractClient(credentials, region);
+        });
+
+        services.AddSingleton<IAmazonSecurityTokenService>(provider =>
+        {
+            var awsOptions = provider.GetRequiredService<IOptions<AwsOptions>>().Value;
+            var region = RegionEndpoint.GetBySystemName(awsOptions.Region ?? AwsConstants.DefaultRegion);
+            var credentials = CreateAwsCredentials(awsOptions);
+            return credentials is null
+                ? new AmazonSecurityTokenServiceClient(region)
+                : new AmazonSecurityTokenServiceClient(credentials, region);
         });
 
         return services;
