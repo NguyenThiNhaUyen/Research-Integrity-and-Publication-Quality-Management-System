@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Paper> Papers => Set<Paper>();
     public DbSet<PaperAuthor> PaperAuthors => Set<PaperAuthor>();
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
+    public DbSet<PaperReviewProfile> PaperReviewProfiles => Set<PaperReviewProfile>();
     public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -124,6 +125,19 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.SubmissionStatus).HasColumnName("submission_status").HasConversion<string>();
             entity.HasOne(x => x.OwnerUser).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.ResearchGroup).WithMany().HasForeignKey(x => x.ResearchGroupId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PaperReviewProfile>(entity =>
+        {
+            entity.ToTable("paper_review_profiles");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.TargetType).HasColumnName("target_type").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ResearchField).HasColumnName("research_field").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.PaperType).HasColumnName("paper_type").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ReviewGoal).HasColumnName("review_goal").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Note).HasColumnName("note").HasMaxLength(1000);
+            entity.HasIndex(x => x.PaperId).IsUnique();
+            entity.HasOne(x => x.Paper).WithOne(x => x.ReviewProfile).HasForeignKey<PaperReviewProfile>(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PaperAuthor>(entity =>

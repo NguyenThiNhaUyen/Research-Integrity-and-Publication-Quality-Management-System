@@ -1,6 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Mvc;
+using PublicationQualitySystem.Application.Validators.PaperReviewProfile;
 using PublicationQualitySystem.Shared.Common;
 
 namespace PublicationQualitySystem.Api.Configurations;
@@ -16,6 +19,9 @@ public static class ServiceConfiguration
                 options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
                 options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             });
+
+        services.AddFluentValidationAutoValidation();
+        services.AddValidatorsFromAssemblyContaining<CreatePaperReviewProfileRequestValidator>();
 
         services.Configure<ApiBehaviorOptions>(options =>
         {

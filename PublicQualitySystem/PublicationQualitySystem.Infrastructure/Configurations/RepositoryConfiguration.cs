@@ -13,6 +13,7 @@ public static class RepositoryConfiguration
         services.AddScoped<IResearchGroupMemberRepository, ResearchGroupMemberRepository>();
         services.AddScoped<IPaperRepository, PaperRepository>();
         services.AddScoped<IPaperVersionRepository, PaperVersionRepository>();
+        services.AddScoped<IPaperReviewProfileRepository, PaperReviewProfileRepository>();
         services.AddScoped<IUploadedFileRepository, UploadedFileRepository>();
         return services;
     }
