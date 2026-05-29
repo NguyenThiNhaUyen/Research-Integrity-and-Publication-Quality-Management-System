@@ -1,11 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Infrastructure.Configurations;
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile.Requests;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile.Responses;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Shared.Exceptions;
@@ -17,7 +13,7 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public class ResearchProfileService(ApplicationDbContext db, IUserRepository users) : IResearchProfileService
 {
-    public async Task<ResearchProfileDto> CreateAsync(ResearchProfileDto dto)
+    public async Task<ResearchProfileResponseDto> CreateAsync(CreateResearchProfileRequestDto dto)
     {
         var user = await users.FindByIdAsync(dto.UserId) ?? throw new AppException(UserErrorCode.UserNotFound);
         var profile = new ResearchProfile
@@ -37,21 +33,21 @@ public class ResearchProfileService(ApplicationDbContext db, IUserRepository use
         return ResearchProfileMapper.ToDto(profile);
     }
 
-    public async Task<ResearchProfileDto> GetByIdAsync(long id)
+    public async Task<ResearchProfileResponseDto> GetByIdAsync(long id)
     {
         var profile = await db.ResearchProfiles.FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new AppException(ResearchProfileErrorCode.ProfileNotFound);
         return ResearchProfileMapper.ToDto(profile);
     }
 
-    public async Task<ResearchProfileDto> GetByUserIdAsync(string userId)
+    public async Task<ResearchProfileResponseDto> GetByUserIdAsync(string userId)
     {
         var profile = await db.ResearchProfiles.FirstOrDefaultAsync(p => p.UserId == userId)
             ?? throw new AppException(ResearchProfileErrorCode.ProfileNotFound);
         return ResearchProfileMapper.ToDto(profile);
     }
 
-    public async Task<ResearchProfileDto> UpdateAsync(long id, ResearchProfileDto dto)
+    public async Task<ResearchProfileResponseDto> UpdateAsync(long id, UpdateResearchProfileRequestDto dto)
     {
         var profile = await db.ResearchProfiles.FirstOrDefaultAsync(p => p.Id == id)
             ?? throw new AppException(ResearchProfileErrorCode.ProfileNotFound);
@@ -68,7 +64,7 @@ public class ResearchProfileService(ApplicationDbContext db, IUserRepository use
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<ResearchProfileDto>> GetAllAsync(int page, int size)
+    public async Task<List<ResearchProfileResponseDto>> GetAllAsync(int page, int size)
     {
         return await db.ResearchProfiles.Where(p => !p.Deleted)
             .Skip(Math.Max(0, page) * Math.Max(1, size))

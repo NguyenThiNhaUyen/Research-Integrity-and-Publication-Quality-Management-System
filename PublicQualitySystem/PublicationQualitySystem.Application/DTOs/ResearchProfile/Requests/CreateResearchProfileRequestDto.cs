@@ -1,10 +1,9 @@
 using PublicationQualitySystem.Domain.Enums;
 
-namespace PublicationQualitySystem.Application.DTOs.ResearchProfile;
+namespace PublicationQualitySystem.Application.DTOs.ResearchProfile.Requests;
 
-public class ResearchProfileDto
+public class CreateResearchProfileRequestDto
 {
-    public long Id { get; set; }
     public string UserId { get; set; } = string.Empty;
     public string? AvatarUrl { get; set; }
     public string? Institution { get; set; }

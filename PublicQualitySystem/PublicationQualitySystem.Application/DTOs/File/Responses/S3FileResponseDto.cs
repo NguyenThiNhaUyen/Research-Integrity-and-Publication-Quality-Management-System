@@ -1,4 +1,4 @@
-namespace PublicationQualitySystem.Application.DTOs.File;
+namespace PublicationQualitySystem.Application.DTOs.File.Responses;
 
 public class S3FileResponseDto
 {

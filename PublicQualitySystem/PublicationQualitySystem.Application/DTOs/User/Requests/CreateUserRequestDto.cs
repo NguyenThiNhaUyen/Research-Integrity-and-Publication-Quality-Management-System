@@ -1,10 +1,8 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json.Serialization;
-using PublicationQualitySystem.Application.DTOs.Role;
 
-namespace PublicationQualitySystem.Application.DTOs.User;
+namespace PublicationQualitySystem.Application.DTOs.User.Requests;
 
-public class UserDto
+public class CreateUserRequestDto
 {
     public string? Id { get; set; }
 
@@ -16,9 +14,5 @@ public class UserDto
     [EmailAddress(ErrorMessage = "Invalid email format")]
     public string Email { get; set; } = string.Empty;
 
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Password { get; set; }
-
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public ISet<RoleDto>? Roles { get; set; }
 }

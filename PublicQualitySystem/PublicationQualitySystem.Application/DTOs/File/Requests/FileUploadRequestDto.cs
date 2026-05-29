@@ -1,6 +1,6 @@
-namespace PublicationQualitySystem.Application.DTOs.File;
+namespace PublicationQualitySystem.Application.DTOs.File.Requests;
 
-public class FileUploadRequest
+public class FileUploadRequestDto
 {
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;

@@ -1,9 +1,5 @@
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Requests;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Responses;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 
@@ -11,7 +7,7 @@ namespace PublicationQualitySystem.Application.Mappings;
 
 public static class ResearchGroupMapper
 {
-    public static ResearchGroupDto ToDto(ResearchGroup group, List<ResearchGroupMemberDto>? members = null) => new()
+    public static ResearchGroupResponseDto ToDto(ResearchGroup group, List<ResearchGroupMemberResponseDto>? members = null) => new()
     {
         Id = group.Id,
         Name = group.Name,
@@ -28,7 +24,7 @@ public static class ResearchGroupMapper
         Members = members
     };
 
-    public static ResearchGroupMemberDto ToMemberDto(ResearchGroupMember member) => new()
+    public static ResearchGroupMemberResponseDto ToMemberDto(ResearchGroupMember member) => new()
     {
         Id = member.Id,
         UserId = member.UserId,
@@ -44,9 +40,22 @@ public static class ResearchGroupMapper
         Responsibilities = member.Responsibilities
     };
 
-    public static void UpdateEntity(ResearchGroup group, ResearchGroupDto dto)
+    public static void UpdateEntity(ResearchGroup group, CreateResearchGroupRequestDto dto)
     {
         group.Name = dto.Name;
+        group.Description = dto.Description;
+        group.ResearchTopics = dto.ResearchTopics;
+        group.ActiveProjects = dto.ActiveProjects;
+        group.Specialization = dto.Specialization;
+        group.Institution = dto.Institution;
+        group.TotalPublications = dto.TotalPublications ?? group.TotalPublications;
+        group.AcceptedPublications = dto.AcceptedPublications ?? group.AcceptedPublications;
+        group.AcceptanceRate = dto.AcceptanceRate ?? group.AcceptanceRate;
+    }
+
+    public static void UpdateEntity(ResearchGroup group, UpdateResearchGroupRequestDto dto)
+    {
+        group.Name = string.IsNullOrWhiteSpace(dto.Name) ? group.Name : dto.Name;
         group.Description = dto.Description;
         group.ResearchTopics = dto.ResearchTopics;
         group.ActiveProjects = dto.ActiveProjects;

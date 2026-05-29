@@ -1,15 +1,11 @@
-using System.ComponentModel.DataAnnotations;
 using PublicationQualitySystem.Domain.Enums;
 
-namespace PublicationQualitySystem.Application.DTOs.ResearchGroup;
+namespace PublicationQualitySystem.Application.DTOs.ResearchGroup.Responses;
 
-public class ResearchGroupMemberDto
+public class ResearchGroupMemberResponseDto
 {
     public long Id { get; set; }
-
-    [Required(ErrorMessage = "User id cannot be empty")]
     public string? UserId { get; set; }
-
     public string? FullName { get; set; }
     public string? Email { get; set; }
     public MemberRoleInGroup? Role { get; set; }

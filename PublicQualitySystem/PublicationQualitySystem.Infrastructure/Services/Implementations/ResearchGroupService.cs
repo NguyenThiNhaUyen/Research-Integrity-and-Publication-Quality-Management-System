@@ -1,11 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Infrastructure.Configurations;
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Requests;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Responses;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Shared.Exceptions;
@@ -20,7 +16,7 @@ public class ResearchGroupService(
     IUserRepository users,
     IResearchGroupMemberRepository members) : IResearchGroupService
 {
-    public async Task<ResearchGroupDto> CreateAsync(ResearchGroupDto dto)
+    public async Task<ResearchGroupResponseDto> CreateAsync(CreateResearchGroupRequestDto dto)
     {
         if (await db.ResearchGroups.AnyAsync(g => g.Name == dto.Name)) throw new AppException(ResearchGroupErrorCode.ResearchGroupNameAlreadyExists);
         var group = new ResearchGroup();
@@ -30,14 +26,14 @@ public class ResearchGroupService(
         return await ToDtoAsync(group, true);
     }
 
-    public async Task<ResearchGroupDto> GetByIdAsync(long id)
+    public async Task<ResearchGroupResponseDto> GetByIdAsync(long id)
     {
         var group = await db.ResearchGroups.FirstOrDefaultAsync(g => g.Id == id)
             ?? throw new AppException(ResearchGroupErrorCode.ResearchGroupNotFound);
         return await ToDtoAsync(group, true);
     }
 
-    public async Task<ResearchGroupDto> UpdateAsync(long id, ResearchGroupDto dto)
+    public async Task<ResearchGroupResponseDto> UpdateAsync(long id, UpdateResearchGroupRequestDto dto)
     {
         var group = await db.ResearchGroups.FirstOrDefaultAsync(g => g.Id == id)
             ?? throw new AppException(ResearchGroupErrorCode.ResearchGroupNotFound);
@@ -58,18 +54,18 @@ public class ResearchGroupService(
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<ResearchGroupDto>> GetAllAsync(int page, int size)
+    public async Task<List<ResearchGroupResponseDto>> GetAllAsync(int page, int size)
     {
         var groups = await db.ResearchGroups.Where(g => !g.Deleted)
             .Skip(Math.Max(0, page) * Math.Max(1, size))
             .Take(Math.Max(1, size))
             .ToListAsync();
-        var result = new List<ResearchGroupDto>();
+        var result = new List<ResearchGroupResponseDto>();
         foreach (var group in groups) result.Add(await ToDtoAsync(group, false));
         return result;
     }
 
-    public async Task<ResearchGroupMemberDto> AddMemberAsync(long groupId, ResearchGroupMemberDto dto)
+    public async Task<ResearchGroupMemberResponseDto> AddMemberAsync(long groupId, AddResearchGroupMemberRequestDto dto)
     {
         var group = await db.ResearchGroups.FirstOrDefaultAsync(g => g.Id == groupId)
             ?? throw new AppException(ResearchGroupErrorCode.ResearchGroupNotFound);
@@ -120,7 +116,7 @@ public class ResearchGroupService(
         await db.SaveChangesAsync();
     }
 
-    public async Task<ResearchGroupMemberDto> ChangeMemberRoleAsync(long groupId, string userId, ResearchGroupMemberDto dto)
+    public async Task<ResearchGroupMemberResponseDto> ChangeMemberRoleAsync(long groupId, string userId, ChangeMemberRoleRequestDto dto)
     {
         if (dto.Role is null) throw new AppException(ResearchGroupErrorCode.ValidationError);
         if (dto.Role == MemberRoleInGroup.LEADER) return await AssignGroupLeaderAsync(groupId, userId);
@@ -134,7 +130,7 @@ public class ResearchGroupService(
         return ResearchGroupMapper.ToMemberDto(member);
     }
 
-    public async Task<ResearchGroupMemberDto> UpdateMemberStatusAsync(long groupId, string userId, ResearchGroupMemberDto dto)
+    public async Task<ResearchGroupMemberResponseDto> UpdateMemberStatusAsync(long groupId, string userId, UpdateMemberStatusRequestDto dto)
     {
         if (dto.Status is null) throw new AppException(ResearchGroupErrorCode.ValidationError);
         var member = await members.FindByGroupAndUserAsync(groupId, userId)
@@ -150,7 +146,7 @@ public class ResearchGroupService(
         return ResearchGroupMapper.ToMemberDto(member);
     }
 
-    public async Task<ResearchGroupMemberDto> AssignGroupLeaderAsync(long groupId, string userId)
+    public async Task<ResearchGroupMemberResponseDto> AssignGroupLeaderAsync(long groupId, string userId)
     {
         var group = await db.ResearchGroups.FirstOrDefaultAsync(g => g.Id == groupId)
             ?? throw new AppException(ResearchGroupErrorCode.ResearchGroupNotFound);
@@ -180,17 +176,17 @@ public class ResearchGroupService(
         return ResearchGroupMapper.ToMemberDto(member);
     }
 
-    public async Task<List<ResearchGroupMemberDto>> GetGroupMembersAsync(long groupId)
+    public async Task<List<ResearchGroupMemberResponseDto>> GetGroupMembersAsync(long groupId)
     {
         if (!await db.ResearchGroups.AnyAsync(g => g.Id == groupId)) throw new AppException(ResearchGroupErrorCode.ResearchGroupNotFound);
         return (await members.FindByGroupAsync(groupId)).Select(ResearchGroupMapper.ToMemberDto).ToList();
     }
 
-    public async Task<List<ResearchGroupDto>> GetGroupsByUserAsync(string userId)
+    public async Task<List<ResearchGroupResponseDto>> GetGroupsByUserAsync(string userId)
     {
         if (!await users.ExistsByIdAsync(userId)) throw new AppException(UserErrorCode.UserNotFound);
         var memberships = await members.FindByUserAsync(userId);
-        var result = new List<ResearchGroupDto>();
+        var result = new List<ResearchGroupResponseDto>();
         foreach (var group in memberships.Select(m => m.ResearchGroup).DistinctBy(g => g.Id))
         {
             result.Add(await ToDtoAsync(group, false));
@@ -198,7 +194,7 @@ public class ResearchGroupService(
         return result;
     }
 
-    private async Task<ResearchGroupDto> ToDtoAsync(ResearchGroup group, bool includeMembers)
+    private async Task<ResearchGroupResponseDto> ToDtoAsync(ResearchGroup group, bool includeMembers)
     {
         var memberDtos = (await members.FindByGroupAsync(group.Id)).Select(ResearchGroupMapper.ToMemberDto).ToList();
         var dto = ResearchGroupMapper.ToDto(group, includeMembers ? memberDtos : null);

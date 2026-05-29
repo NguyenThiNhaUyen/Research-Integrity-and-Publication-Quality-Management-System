@@ -1,7 +1,8 @@
 using Amazon.S3;
 using Amazon.S3.Model;
 using Microsoft.Extensions.Options;
-using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.File.Requests;
+using PublicationQualitySystem.Application.DTOs.File.Responses;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Application.Services.Interfaces;
@@ -12,7 +13,7 @@ public class S3FileService(IAmazonS3 s3, IOptions<S3Options> options) : IFileSto
 {
     private string Bucket => options.Value.Bucket ?? string.Empty;
 
-    public async Task<S3FileResponseDto> UploadAsync(FileUploadRequest file, string folder)
+    public async Task<S3FileResponseDto> UploadAsync(FileUploadRequestDto file, string folder)
     {
         try
         {

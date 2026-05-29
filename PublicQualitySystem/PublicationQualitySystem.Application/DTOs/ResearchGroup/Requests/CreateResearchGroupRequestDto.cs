@@ -1,11 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PublicationQualitySystem.Application.DTOs.ResearchGroup;
+namespace PublicationQualitySystem.Application.DTOs.ResearchGroup.Requests;
 
-public class ResearchGroupDto
+public class CreateResearchGroupRequestDto
 {
-    public long Id { get; set; }
-
     [Required(ErrorMessage = "Research group name cannot be empty")]
     public string Name { get; set; } = string.Empty;
 
@@ -17,7 +15,4 @@ public class ResearchGroupDto
     public int? TotalPublications { get; set; }
     public int? AcceptedPublications { get; set; }
     public double? AcceptanceRate { get; set; }
-    public int? MemberCount { get; set; }
-    public ResearchGroupMemberDto? Leader { get; set; }
-    public List<ResearchGroupMemberDto>? Members { get; set; }
 }

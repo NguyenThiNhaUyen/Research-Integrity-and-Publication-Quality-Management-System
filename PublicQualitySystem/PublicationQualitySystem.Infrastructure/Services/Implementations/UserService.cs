@@ -1,10 +1,6 @@
 using PublicationQualitySystem.Infrastructure.Configurations;
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.User.Requests;
+using PublicationQualitySystem.Application.DTOs.User.Responses;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Application.Mappings;
@@ -15,7 +11,7 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public class UserService(ApplicationDbContext db, IUserRepository users) : IUserService
 {
-    public async Task<UserDto> CreateAsync(UserDto dto)
+    public async Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto)
     {
         if (await users.ExistsByEmailAsync(dto.Email))
             throw new AppException(UserErrorCode.EmailAlreadyExists);
@@ -34,13 +30,13 @@ public class UserService(ApplicationDbContext db, IUserRepository users) : IUser
         return UserMapper.ToDto(user);
     }
 
-    public async Task<UserDto> GetByIdAsync(string id)
+    public async Task<UserResponseDto> GetByIdAsync(string id)
     {
         var user = await users.FindByIdAsync(id) ?? throw new AppException(UserErrorCode.UserNotFound);
         return UserMapper.ToDto(user);
     }
 
-    public async Task<UserDto> UpdateAsync(string id, UserDto dto)
+    public async Task<UserResponseDto> UpdateAsync(string id, UpdateUserRequestDto dto)
     {
         var user = await users.FindByIdAsync(id) ?? throw new AppException(UserErrorCode.UserNotFound);
         UserMapper.UpdateEntity(user, dto);
@@ -55,7 +51,7 @@ public class UserService(ApplicationDbContext db, IUserRepository users) : IUser
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<UserDto>> GetAllAsync(int page, int size)
+    public async Task<List<UserResponseDto>> GetAllAsync(int page, int size)
     {
         var list = await users.FindAllAsync(Math.Max(0, page) * Math.Max(1, size), Math.Max(1, size));
         return list.Select(UserMapper.ToDto).ToList();

@@ -2,12 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationQualitySystem.Api.Common;
 using PublicationQualitySystem.Shared.Common;
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Requests;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup.Responses;
 using PublicationQualitySystem.Application.Services.Interfaces;
 
 namespace PublicationQualitySystem.Api.Controllers;
@@ -16,13 +12,13 @@ namespace PublicationQualitySystem.Api.Controllers;
 public class ResearchGroupController(IResearchGroupService groupService) : ApiBaseController
 {
     [HttpPost]
-    public async Task<ActionResult<BaseResponse<ResearchGroupDto>>> Create([FromBody] ResearchGroupDto dto) => CreatedResponse(await groupService.CreateAsync(dto));
+    public async Task<ActionResult<BaseResponse<ResearchGroupResponseDto>>> Create([FromBody] CreateResearchGroupRequestDto dto) => CreatedResponse(await groupService.CreateAsync(dto));
 
     [HttpGet("{id:long}")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupDto>>> GetById(long id) => OkResponse(await groupService.GetByIdAsync(id), "Get by id successfully");
+    public async Task<ActionResult<BaseResponse<ResearchGroupResponseDto>>> GetById(long id) => OkResponse(await groupService.GetByIdAsync(id), "Get by id successfully");
 
     [HttpPut("{id:long}")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupDto>>> Update(long id, [FromBody] ResearchGroupDto dto) => OkResponse(await groupService.UpdateAsync(id, dto), "Update successfully");
+    public async Task<ActionResult<BaseResponse<ResearchGroupResponseDto>>> Update(long id, [FromBody] UpdateResearchGroupRequestDto dto) => OkResponse(await groupService.UpdateAsync(id, dto), "Update successfully");
 
     [HttpDelete("{id:long}")]
     public async Task<ActionResult<BaseResponse<object>>> Delete(long id)
@@ -33,17 +29,17 @@ public class ResearchGroupController(IResearchGroupService groupService) : ApiBa
 
     [HttpGet]
     [Authorize(Policy = "RESEARCH_GROUP_READ")]
-    public async Task<ActionResult<BaseResponse<List<ResearchGroupDto>>>> GetAll([FromQuery] int page = 0, [FromQuery] int size = 20) =>
+    public async Task<ActionResult<BaseResponse<List<ResearchGroupResponseDto>>>> GetAll([FromQuery] int page = 0, [FromQuery] int size = 20) =>
         OkResponse(await groupService.GetAllAsync(page, size), "Research groups retrieved successfully");
 
     [HttpPost("{groupId:long}/members")]
     [Authorize(Policy = "RESEARCH_GROUP_MEMBER_MANAGE")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupMemberDto>>> AddMember(long groupId, [FromBody] ResearchGroupMemberDto dto) =>
+    public async Task<ActionResult<BaseResponse<ResearchGroupMemberResponseDto>>> AddMember(long groupId, [FromBody] AddResearchGroupMemberRequestDto dto) =>
         CreatedResponse(await groupService.AddMemberAsync(groupId, dto));
 
     [HttpGet("{groupId:long}/members")]
     [Authorize(Policy = "RESEARCH_GROUP_READ")]
-    public async Task<ActionResult<BaseResponse<List<ResearchGroupMemberDto>>>> GetMembers(long groupId) =>
+    public async Task<ActionResult<BaseResponse<List<ResearchGroupMemberResponseDto>>>> GetMembers(long groupId) =>
         OkResponse(await groupService.GetGroupMembersAsync(groupId), "Research group members retrieved successfully");
 
     [HttpDelete("{groupId:long}/members/{userId}")]
@@ -56,21 +52,21 @@ public class ResearchGroupController(IResearchGroupService groupService) : ApiBa
 
     [HttpPatch("{groupId:long}/members/{userId}/role")]
     [Authorize(Policy = "RESEARCH_GROUP_MEMBER_MANAGE")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupMemberDto>>> ChangeMemberRole(long groupId, string userId, [FromBody] ResearchGroupMemberDto dto) =>
+    public async Task<ActionResult<BaseResponse<ResearchGroupMemberResponseDto>>> ChangeMemberRole(long groupId, string userId, [FromBody] ChangeMemberRoleRequestDto dto) =>
         OkResponse(await groupService.ChangeMemberRoleAsync(groupId, userId, dto), "Research group member role updated successfully");
 
     [HttpPatch("{groupId:long}/members/{userId}/status")]
     [Authorize(Policy = "RESEARCH_GROUP_MEMBER_MANAGE")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupMemberDto>>> UpdateMemberStatus(long groupId, string userId, [FromBody] ResearchGroupMemberDto dto) =>
+    public async Task<ActionResult<BaseResponse<ResearchGroupMemberResponseDto>>> UpdateMemberStatus(long groupId, string userId, [FromBody] UpdateMemberStatusRequestDto dto) =>
         OkResponse(await groupService.UpdateMemberStatusAsync(groupId, userId, dto), "Research group member status updated successfully");
 
     [HttpPatch("{groupId:long}/leader/{userId}")]
     [Authorize(Policy = "RESEARCH_GROUP_MEMBER_MANAGE")]
-    public async Task<ActionResult<BaseResponse<ResearchGroupMemberDto>>> AssignLeader(long groupId, string userId) =>
+    public async Task<ActionResult<BaseResponse<ResearchGroupMemberResponseDto>>> AssignLeader(long groupId, string userId) =>
         OkResponse(await groupService.AssignGroupLeaderAsync(groupId, userId), "Research group leader assigned successfully");
 
     [HttpGet("users/{userId}")]
     [Authorize(Policy = "RESEARCH_GROUP_READ")]
-    public async Task<ActionResult<BaseResponse<List<ResearchGroupDto>>>> GetGroupsByUser(string userId) =>
+    public async Task<ActionResult<BaseResponse<List<ResearchGroupResponseDto>>>> GetGroupsByUser(string userId) =>
         OkResponse(await groupService.GetGroupsByUserAsync(userId), "User research groups retrieved successfully");
 }

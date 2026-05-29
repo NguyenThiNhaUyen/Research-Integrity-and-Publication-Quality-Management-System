@@ -1,11 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace PublicationQualitySystem.Application.DTOs.Role;
+namespace PublicationQualitySystem.Application.DTOs.Role.Requests;
 
-public class RoleDto
+public class CreateRoleRequestDto
 {
-    public long Id { get; set; }
-
     [Required(ErrorMessage = "Role name cannot be empty")]
     public string Name { get; set; } = string.Empty;
 

@@ -1,4 +1,5 @@
-using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.File.Requests;
+using PublicationQualitySystem.Application.DTOs.File.Responses;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Application.Services.Interfaces;
@@ -27,7 +28,7 @@ public class UploadService(IFileStorageService fileStorageService) : IUploadServ
         ".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"
     };
 
-    public async Task<S3FileResponseDto> UploadAsync(FileUploadRequest file, UploadType type)
+    public async Task<S3FileResponseDto> UploadAsync(FileUploadRequestDto file, UploadType type)
     {
         if (file is null || file.Length == 0)
         {

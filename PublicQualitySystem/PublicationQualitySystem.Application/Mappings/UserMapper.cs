@@ -1,16 +1,12 @@
-using PublicationQualitySystem.Application.DTOs.Auth;
-using PublicationQualitySystem.Application.DTOs.File;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile;
-using PublicationQualitySystem.Application.DTOs.Role;
-using PublicationQualitySystem.Application.DTOs.User;
+using PublicationQualitySystem.Application.DTOs.User.Requests;
+using PublicationQualitySystem.Application.DTOs.User.Responses;
 using PublicationQualitySystem.Domain.Entities;
 
 namespace PublicationQualitySystem.Application.Mappings;
 
 public static class UserMapper
 {
-    public static UserDto ToDto(User user) => new()
+    public static UserResponseDto ToDto(User user) => new()
     {
         Id = user.Id,
         FullName = user.FullName,
@@ -18,7 +14,7 @@ public static class UserMapper
         Roles = user.Roles.Select(RoleMapper.ToDto).ToHashSet()
     };
 
-    public static void UpdateEntity(User user, UserDto dto)
+    public static void UpdateEntity(User user, UpdateUserRequestDto dto)
     {
         user.FullName = dto.FullName;
         user.Email = dto.Email;

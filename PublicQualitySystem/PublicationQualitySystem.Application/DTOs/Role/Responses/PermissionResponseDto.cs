@@ -1,6 +1,6 @@
-namespace PublicationQualitySystem.Application.DTOs.Role;
+namespace PublicationQualitySystem.Application.DTOs.Role.Responses;
 
-public class PermissionDto
+public class PermissionResponseDto
 {
     public long Id { get; set; }
     public string Name { get; set; } = string.Empty;

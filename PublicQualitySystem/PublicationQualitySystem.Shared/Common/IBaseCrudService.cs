@@ -1,12 +1,13 @@
 namespace PublicationQualitySystem.Shared.Common;
 
-public interface IBaseCrudService<TDto, in TId>
+public interface IBaseCrudService<TResponseDto, in TCreateRequestDto, in TUpdateRequestDto, in TId>
 {
-    Task<TDto> CreateAsync(TDto dto);
-    Task<TDto> GetByIdAsync(TId id);
-    Task<TDto> UpdateAsync(TId id, TDto dto);
+    Task<TResponseDto> CreateAsync(TCreateRequestDto dto);
+    Task<TResponseDto> GetByIdAsync(TId id);
+    Task<TResponseDto> UpdateAsync(TId id, TUpdateRequestDto dto);
     Task DeleteAsync(TId id);
-    Task<List<TDto>> GetAllAsync(int page, int size);
+    Task<List<TResponseDto>> GetAllAsync(int page, int size);
 }
 
-public interface IBaseCrudService<TDto> : IBaseCrudService<TDto, long>;
+public interface IBaseCrudService<TResponseDto, in TCreateRequestDto, in TUpdateRequestDto>
+    : IBaseCrudService<TResponseDto, TCreateRequestDto, TUpdateRequestDto, long>;
