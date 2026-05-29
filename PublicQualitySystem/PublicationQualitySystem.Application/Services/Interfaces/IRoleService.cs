@@ -1,14 +1,18 @@
 using PublicationQualitySystem.Shared.Common;
-using PublicationQualitySystem.Application.DTOs.Role.Requests;
-using PublicationQualitySystem.Application.DTOs.Role.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 
 namespace PublicationQualitySystem.Application.Services.Interfaces;
 
-public interface IRoleService : IBaseCrudService<RoleResponseDto, CreateRoleRequestDto, UpdateRoleRequestDto>
+public interface IRoleService : IBaseCrudService<CreateRoleRequest, UpdateRoleRequest, RoleResponse, long>
 {
-    Task<List<RoleResponseDto>> GetAllRolesAsync(int page, int size);
-    Task<List<UserRoleResponseDto>> GetUserRolesAsync(string userId);
-    Task<List<UserRoleResponseDto>> AssignRoleToUserAsync(string userId, long roleId);
-    Task<List<UserRoleResponseDto>> RemoveRoleFromUserAsync(string userId, long roleId);
-    Task<List<UserRoleResponseDto>> ReplaceUserRolesAsync(string userId, UpdateUserRolesRequestDto dto);
+    Task<List<RoleResponse>> GetAllRolesAsync(int page, int size);
+    Task<List<UserRoleResponse>> GetUserRolesAsync(string userId);
+    Task<List<UserRoleResponse>> AssignRoleToUserAsync(string userId, long roleId);
+    Task<List<UserRoleResponse>> RemoveRoleFromUserAsync(string userId, long roleId);
+    Task<List<UserRoleResponse>> ReplaceUserRolesAsync(string userId, UpdateUserRolesRequest dto);
 }

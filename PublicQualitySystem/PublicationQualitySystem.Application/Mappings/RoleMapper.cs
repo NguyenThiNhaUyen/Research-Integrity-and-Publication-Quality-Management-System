@@ -1,11 +1,16 @@
-using PublicationQualitySystem.Application.DTOs.Role.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 
 namespace PublicationQualitySystem.Application.Mappings;
 
 public static class RoleMapper
 {
-    public static RoleResponseDto ToDto(Role role) => new()
+    public static RoleResponse ToResponse(Role role) => new()
     {
         Id = role.Id,
         Name = role.Name,
@@ -13,7 +18,7 @@ public static class RoleMapper
         Permissions = role.Permissions.Select(p => p.Name).ToHashSet()
     };
 
-    public static UserRoleResponseDto ToUserRoleDto(Role role) => new()
+    public static UserRoleResponse ToUserRoleResponse(Role role) => new()
     {
         Id = role.Id,
         Name = role.Name,

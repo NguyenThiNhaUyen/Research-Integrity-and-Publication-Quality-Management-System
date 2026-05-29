@@ -8,7 +8,6 @@ using PublicationQualitySystem.Shared.Constants;
 using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Infrastructure.Security;
 using PublicationQualitySystem.Shared.Exceptions;
-using PublicationQualitySystem.Application.DTOs.File.Requests;
 
 namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
@@ -63,7 +62,7 @@ public class UploadService(
         ".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp", ".xls", ".xlsx", ".ppt", ".pptx"
     };
 
-    public async Task<UploadedFileResponse> UploadAsync(FileUploadRequestDto file, UploadType type)
+    public async Task<UploadedFileResponse> UploadAsync(FileUploadRequest file, UploadType type)
     {
         if (file is null || file.Length == 0)
         {

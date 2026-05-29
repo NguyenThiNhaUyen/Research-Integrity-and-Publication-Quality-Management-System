@@ -5,7 +5,7 @@ namespace PublicationQualitySystem.Application.Mappings;
 
 public static class PaperVersionMapper
 {
-    public static PaperVersionResponseDto ToDto(PaperVersion version) => new()
+    public static PaperVersionResponse ToResponse(PaperVersion version) => new()
     {
         Id = version.Id,
         PaperId = version.PaperId,

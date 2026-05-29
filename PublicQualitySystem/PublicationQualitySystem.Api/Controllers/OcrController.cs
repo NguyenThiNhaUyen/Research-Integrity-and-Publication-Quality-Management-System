@@ -42,10 +42,11 @@ public class OcrController(
         }
         catch (AppException exception)
         {
-            return StatusCode(exception.ErrorCode.StatusCode, new
+            var statusCode = (int)exception.ErrorCode.StatusCode;
+            return StatusCode(statusCode, new
             {
                 success = false,
-                code = exception.ErrorCode.Code,
+                code = statusCode,
                 message = exception.Message
             });
         }

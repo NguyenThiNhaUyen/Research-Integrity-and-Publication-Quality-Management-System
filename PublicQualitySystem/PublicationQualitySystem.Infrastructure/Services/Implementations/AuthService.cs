@@ -5,6 +5,11 @@ using Amazon.CognitoIdentityProvider.Model;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Infrastructure.Configurations;
 using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Infrastructure.Options;
@@ -23,7 +28,7 @@ public class AuthService(
     private string ClientSecret => cognitoOptions.Value.ClientSecret ?? string.Empty;
     private string UserPoolId => cognitoOptions.Value.UserPoolId ?? string.Empty;
 
-    public async Task<AuthResponseDto> RegisterAsync(RegisterRequestDto request)
+    public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
         var email = NormalizeEmail(request.Email);
         var fullName = request.FullName.Trim();
@@ -58,7 +63,7 @@ public class AuthService(
                 Password = BCrypt.Net.BCrypt.HashPassword(request.Password)
             });
             await db.SaveChangesAsync();
-            return await LoginAsync(new LoginRequestDto { Email = email, Password = request.Password });
+            return await LoginAsync(new LoginRequest { Email = email, Password = request.Password });
         }
         catch (UsernameExistsException)
         {
@@ -70,7 +75,7 @@ public class AuthService(
         }
     }
 
-    public async Task<AuthResponseDto> LoginAsync(LoginRequestDto request)
+    public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var email = NormalizeEmail(request.Email);
         try
@@ -88,7 +93,7 @@ public class AuthService(
                 AuthParameters = authParameters
             });
             var result = response.AuthenticationResult;
-            var dto = new AuthResponseDto
+            var dto = new AuthResponse
             {
                 AccessToken = result.AccessToken,
                 RefreshToken = result.RefreshToken,
@@ -115,7 +120,7 @@ public class AuthService(
         }
     }
 
-    public async Task<AuthResponseDto> RefreshTokenAsync(RefreshTokenRequestDto request)
+    public async Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request)
     {
         try
         {
@@ -126,7 +131,7 @@ public class AuthService(
                 AuthParameters = new Dictionary<string, string> { ["REFRESH_TOKEN"] = request.RefreshToken }
             });
             var result = response.AuthenticationResult;
-            return new AuthResponseDto
+            return new AuthResponse
             {
                 AccessToken = result.AccessToken,
                 RefreshToken = result.RefreshToken ?? request.RefreshToken,
@@ -141,7 +146,7 @@ public class AuthService(
         }
     }
 
-    public Task LogoutAsync(LogoutRequestDto request) =>
+    public Task LogoutAsync(LogoutRequest request) =>
         cognito.GlobalSignOutAsync(new GlobalSignOutRequest { AccessToken = request.AccessToken });
 
     private async Task ConfirmAndVerifyEmailIfNeeded(string email, SignUpResponse response)

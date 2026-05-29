@@ -22,7 +22,7 @@ public class PaperVersionService(
     ICurrentUserProvider currentUser,
     IOptions<ManuscriptUploadOptions> uploadOptions) : IPaperVersionService
 {
-    public async Task<PaperVersionResponseDto> CreateVersionAsync(long paperId, CreatePaperVersionRequest request)
+    public async Task<PaperVersionResponse> CreateVersionAsync(long paperId, CreatePaperVersionRequest request)
     {
         var paper = await GetAuthorizedPaperAsync(paperId);
         var uploadedFile = await uploadedFiles.FindByIdAsync(request.FileId)
@@ -65,27 +65,27 @@ public class PaperVersionService(
 
         await versions.AddAsync(version);
         await versions.SaveChangesAsync();
-        return PaperVersionMapper.ToDto(version);
+        return PaperVersionMapper.ToResponse(version);
     }
 
-    public async Task<List<PaperVersionResponseDto>> GetVersionsAsync(long paperId)
+    public async Task<List<PaperVersionResponse>> GetVersionsAsync(long paperId)
     {
         await GetAuthorizedPaperAsync(paperId);
         return (await versions.FindByPaperIdAsync(paperId))
-            .Select(PaperVersionMapper.ToDto)
+            .Select(PaperVersionMapper.ToResponse)
             .ToList();
     }
 
-    public async Task<PaperVersionResponseDto> GetVersionAsync(long paperId, long versionId)
+    public async Task<PaperVersionResponse> GetVersionAsync(long paperId, long versionId)
     {
         var version = await versions.FindByPaperAndIdAsync(paperId, versionId)
             ?? throw new AppException(UploadFileErrorCode.FileNotFound);
 
         EnsureCanAccess(version.Paper);
-        return PaperVersionMapper.ToDto(version);
+        return PaperVersionMapper.ToResponse(version);
     }
 
-    public async Task<PaperVersionResponseDto> UpdateVersionAsync(long paperId, long versionId, UpdatePaperVersionRequest request)
+    public async Task<PaperVersionResponse> UpdateVersionAsync(long paperId, long versionId, UpdatePaperVersionRequest request)
     {
         var version = await versions.FindByPaperAndIdAsync(paperId, versionId)
             ?? throw new AppException(UploadFileErrorCode.FileNotFound);
@@ -94,7 +94,7 @@ public class PaperVersionService(
         version.VersionName = request.VersionName;
         version.ChangeLog = request.ChangeLog;
         await versions.SaveChangesAsync();
-        return PaperVersionMapper.ToDto(version);
+        return PaperVersionMapper.ToResponse(version);
     }
 
     public async Task DeleteVersionAsync(long paperId, long versionId)
@@ -107,7 +107,7 @@ public class PaperVersionService(
         await versions.SaveChangesAsync();
     }
 
-    public async Task<PaperVersionResponseDto> RestoreVersionAsync(long paperId, long versionId)
+    public async Task<PaperVersionResponse> RestoreVersionAsync(long paperId, long versionId)
     {
         var version = await versions.FindByPaperAndIdIncludingDeletedAsync(paperId, versionId)
             ?? throw new AppException(UploadFileErrorCode.FileNotFound);
@@ -115,10 +115,10 @@ public class PaperVersionService(
         EnsureCanAccess(version.Paper);
         version.Deleted = false;
         await versions.SaveChangesAsync();
-        return PaperVersionMapper.ToDto(version);
+        return PaperVersionMapper.ToResponse(version);
     }
 
-    public async Task<DownloadUrlResponseDto> GetDownloadUrlAsync(long fileId)
+    public async Task<DownloadUrlResponse> GetDownloadUrlAsync(long fileId)
     {
         var file = await uploadedFiles.FindByIdAsync(fileId)
             ?? throw new AppException(UploadFileErrorCode.FileNotFound);
@@ -134,7 +134,7 @@ public class PaperVersionService(
         }
 
         var expiresAt = DateTime.UtcNow.AddMinutes(Math.Max(1, uploadOptions.Value.DownloadUrlExpirationMinutes));
-        return new DownloadUrlResponseDto
+        return new DownloadUrlResponse
         {
             FileId = file.Id,
             FileKey = file.FileKey,

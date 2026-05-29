@@ -1,12 +1,16 @@
-using PublicationQualitySystem.Application.DTOs.ResearchProfile.Requests;
-using PublicationQualitySystem.Application.DTOs.ResearchProfile.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 
 namespace PublicationQualitySystem.Application.Mappings;
 
 public static class ResearchProfileMapper
 {
-    public static ResearchProfileResponseDto ToDto(ResearchProfile profile) => new()
+    public static ResearchProfileResponse ToResponse(ResearchProfile profile) => new()
     {
         Id = profile.Id,
         UserId = profile.UserId,
@@ -19,7 +23,7 @@ public static class ResearchProfileMapper
         Status = profile.Status
     };
 
-    public static void UpdateEntity(ResearchProfile profile, UpdateResearchProfileRequestDto dto)
+    public static void UpdateEntity(ResearchProfile profile, UpdateResearchProfileRequest dto)
     {
         profile.AvatarUrl = dto.AvatarUrl;
         profile.Institution = dto.Institution ?? profile.Institution;

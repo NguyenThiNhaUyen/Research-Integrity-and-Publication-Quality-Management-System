@@ -5,11 +5,11 @@ namespace PublicationQualitySystem.Application.Services.Interfaces;
 
 public interface IPaperVersionService
 {
-    Task<PaperVersionResponseDto> CreateVersionAsync(long paperId, CreatePaperVersionRequest request);
-    Task<List<PaperVersionResponseDto>> GetVersionsAsync(long paperId);
-    Task<PaperVersionResponseDto> GetVersionAsync(long paperId, long versionId);
-    Task<PaperVersionResponseDto> UpdateVersionAsync(long paperId, long versionId, UpdatePaperVersionRequest request);
+    Task<PaperVersionResponse> CreateVersionAsync(long paperId, CreatePaperVersionRequest request);
+    Task<List<PaperVersionResponse>> GetVersionsAsync(long paperId);
+    Task<PaperVersionResponse> GetVersionAsync(long paperId, long versionId);
+    Task<PaperVersionResponse> UpdateVersionAsync(long paperId, long versionId, UpdatePaperVersionRequest request);
     Task DeleteVersionAsync(long paperId, long versionId);
-    Task<PaperVersionResponseDto> RestoreVersionAsync(long paperId, long versionId);
-    Task<DownloadUrlResponseDto> GetDownloadUrlAsync(long fileId);
+    Task<PaperVersionResponse> RestoreVersionAsync(long paperId, long versionId);
+    Task<DownloadUrlResponse> GetDownloadUrlAsync(long fileId);
 }

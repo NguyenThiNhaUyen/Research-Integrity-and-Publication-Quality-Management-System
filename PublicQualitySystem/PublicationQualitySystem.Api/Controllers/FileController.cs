@@ -24,6 +24,6 @@ public class FileController(
 
     [HttpGet("{fileId:long}/download-url")]
     [Authorize(Policy = "PAPER_VERSION_READ")]
-    public async Task<ActionResult<BaseResponse<DownloadUrlResponseDto>>> GetDownloadUrl(long fileId) =>
+    public async Task<ActionResult<BaseResponse<DownloadUrlResponse>>> GetDownloadUrl(long fileId) =>
         OkResponse(await paperVersionService.GetDownloadUrlAsync(fileId), "Download URL generated successfully");
 }

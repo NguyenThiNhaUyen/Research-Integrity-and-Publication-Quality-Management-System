@@ -2,11 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PublicationQualitySystem.Api.Common;
 using PublicationQualitySystem.Shared.Common;
-using PublicationQualitySystem.Application.DTOs.File.Requests;
-using PublicationQualitySystem.Application.DTOs.File.Responses;
+using PublicationQualitySystem.Application.DTOs.File;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Application.Services.Interfaces;
-using PublicationQualitySystem.Application.DTOs.File;
 
 namespace PublicationQualitySystem.Api.Controllers;
 
@@ -19,7 +17,7 @@ public class UploadController(IUploadService uploadService) : ApiBaseController
     public async Task<ActionResult<BaseResponse<UploadedFileResponse>>> Upload(
         IFormFile file,
         [FromForm] UploadType type) =>
-        OkResponse(await uploadService.UploadAsync(new FileUploadRequestDto
+        OkResponse(await uploadService.UploadAsync(new FileUploadRequest
         {
             FileName = file.FileName,
             ContentType = file.ContentType,
@@ -27,4 +25,3 @@ public class UploadController(IUploadService uploadService) : ApiBaseController
             Content = file.OpenReadStream()
         }, type), "Upload file successfully");
 }
-

@@ -1,6 +1,10 @@
 using PublicationQualitySystem.Infrastructure.Configurations;
-using PublicationQualitySystem.Application.DTOs.User.Requests;
-using PublicationQualitySystem.Application.DTOs.User.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Application.Mappings;
@@ -11,37 +15,37 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public class UserService(ApplicationDbContext db, IUserRepository users) : IUserService
 {
-    public async Task<UserResponseDto> CreateAsync(CreateUserRequestDto dto)
+    public async Task<UserResponse> CreateAsync(CreateUserRequest request)
     {
-        if (await users.ExistsByEmailAsync(dto.Email))
+        if (await users.ExistsByEmailAsync(request.Email))
             throw new AppException(UserErrorCode.EmailAlreadyExists);
-        if (string.IsNullOrWhiteSpace(dto.Id))
+        if (string.IsNullOrWhiteSpace(request.Id))
             throw new AppException(UserErrorCode.ValidationError, "User id must be Cognito sub");
 
         var user = new User
         {
-            Id = dto.Id,
-            FullName = dto.FullName,
-            Email = dto.Email,
-            Password = string.IsNullOrWhiteSpace(dto.Password) ? string.Empty : BCrypt.Net.BCrypt.HashPassword(dto.Password)
+            Id = request.Id,
+            FullName = request.FullName,
+            Email = request.Email,
+            Password = string.IsNullOrWhiteSpace(request.Password) ? string.Empty : BCrypt.Net.BCrypt.HashPassword(request.Password)
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        return UserMapper.ToDto(user);
+        return UserMapper.ToResponse(user);
     }
 
-    public async Task<UserResponseDto> GetByIdAsync(string id)
+    public async Task<UserResponse> GetByIdAsync(string id)
     {
         var user = await users.FindByIdAsync(id) ?? throw new AppException(UserErrorCode.UserNotFound);
-        return UserMapper.ToDto(user);
+        return UserMapper.ToResponse(user);
     }
 
-    public async Task<UserResponseDto> UpdateAsync(string id, UpdateUserRequestDto dto)
+    public async Task<UserResponse> UpdateAsync(string id, UpdateUserRequest request)
     {
         var user = await users.FindByIdAsync(id) ?? throw new AppException(UserErrorCode.UserNotFound);
-        UserMapper.UpdateEntity(user, dto);
+        UserMapper.UpdateEntity(user, request);
         await db.SaveChangesAsync();
-        return UserMapper.ToDto(user);
+        return UserMapper.ToResponse(user);
     }
 
     public async Task DeleteAsync(string id)
@@ -51,9 +55,9 @@ public class UserService(ApplicationDbContext db, IUserRepository users) : IUser
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<UserResponseDto>> GetAllAsync(int page, int size)
+    public async Task<List<UserResponse>> GetAllAsync(int page, int size)
     {
         var list = await users.FindAllAsync(Math.Max(0, page) * Math.Max(1, size), Math.Max(1, size));
-        return list.Select(UserMapper.ToDto).ToList();
+        return list.Select(UserMapper.ToResponse).ToList();
     }
 }

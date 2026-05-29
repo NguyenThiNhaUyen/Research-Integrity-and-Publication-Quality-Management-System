@@ -1,5 +1,9 @@
-using PublicationQualitySystem.Application.DTOs.ResearchGroup.Requests;
-using PublicationQualitySystem.Application.DTOs.ResearchGroup.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 
@@ -7,7 +11,7 @@ namespace PublicationQualitySystem.Application.Mappings;
 
 public static class ResearchGroupMapper
 {
-    public static ResearchGroupResponseDto ToDto(ResearchGroup group, List<ResearchGroupMemberResponseDto>? members = null) => new()
+    public static ResearchGroupResponse ToResponse(ResearchGroup group, List<ResearchGroupMemberResponse>? members = null) => new()
     {
         Id = group.Id,
         Name = group.Name,
@@ -24,7 +28,7 @@ public static class ResearchGroupMapper
         Members = members
     };
 
-    public static ResearchGroupMemberResponseDto ToMemberDto(ResearchGroupMember member) => new()
+    public static ResearchGroupMemberResponse ToMemberResponse(ResearchGroupMember member) => new()
     {
         Id = member.Id,
         UserId = member.UserId,
@@ -40,7 +44,7 @@ public static class ResearchGroupMapper
         Responsibilities = member.Responsibilities
     };
 
-    public static void UpdateEntity(ResearchGroup group, CreateResearchGroupRequestDto dto)
+    public static void UpdateEntity(ResearchGroup group, CreateResearchGroupRequest dto)
     {
         group.Name = dto.Name;
         group.Description = dto.Description;
@@ -48,21 +52,15 @@ public static class ResearchGroupMapper
         group.ActiveProjects = dto.ActiveProjects;
         group.Specialization = dto.Specialization;
         group.Institution = dto.Institution;
-        group.TotalPublications = dto.TotalPublications ?? group.TotalPublications;
-        group.AcceptedPublications = dto.AcceptedPublications ?? group.AcceptedPublications;
-        group.AcceptanceRate = dto.AcceptanceRate ?? group.AcceptanceRate;
     }
 
-    public static void UpdateEntity(ResearchGroup group, UpdateResearchGroupRequestDto dto)
+    public static void UpdateEntity(ResearchGroup group, UpdateResearchGroupRequest dto)
     {
-        group.Name = string.IsNullOrWhiteSpace(dto.Name) ? group.Name : dto.Name;
+        if (!string.IsNullOrWhiteSpace(dto.Name)) group.Name = dto.Name;
         group.Description = dto.Description;
         group.ResearchTopics = dto.ResearchTopics;
         group.ActiveProjects = dto.ActiveProjects;
         group.Specialization = dto.Specialization;
         group.Institution = dto.Institution;
-        group.TotalPublications = dto.TotalPublications ?? group.TotalPublications;
-        group.AcceptedPublications = dto.AcceptedPublications ?? group.AcceptedPublications;
-        group.AcceptanceRate = dto.AcceptanceRate ?? group.AcceptanceRate;
     }
 }

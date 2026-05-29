@@ -1,7 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Infrastructure.Configurations;
-using PublicationQualitySystem.Application.DTOs.Role.Requests;
-using PublicationQualitySystem.Application.DTOs.Role.Responses;
+using PublicationQualitySystem.Application.DTOs.Auth;
+using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.ResearchGroup;
+using PublicationQualitySystem.Application.DTOs.ResearchProfile;
+using PublicationQualitySystem.Application.DTOs.Role;
+using PublicationQualitySystem.Application.DTOs.User;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Shared.Exceptions;
 using PublicationQualitySystem.Application.Mappings;
@@ -19,15 +23,15 @@ public class RoleService(
 {
     private const string AdminRole = "ADMIN";
 
-    public Task<List<RoleResponseDto>> GetAllRolesAsync(int page, int size) => GetAllAsync(page, size);
+    public Task<List<RoleResponse>> GetAllRolesAsync(int page, int size) => GetAllAsync(page, size);
 
-    public async Task<List<UserRoleResponseDto>> GetUserRolesAsync(string userId)
+    public async Task<List<UserRoleResponse>> GetUserRolesAsync(string userId)
     {
         var user = await users.FindByIdAsync(userId) ?? throw new AppException(UserErrorCode.UserNotFound);
-        return user.Roles.Select(RoleMapper.ToUserRoleDto).ToList();
+        return user.Roles.Select(RoleMapper.ToUserRoleResponse).ToList();
     }
 
-    public async Task<List<UserRoleResponseDto>> AssignRoleToUserAsync(string userId, long roleId)
+    public async Task<List<UserRoleResponse>> AssignRoleToUserAsync(string userId, long roleId)
     {
         var user = await users.FindByIdAsync(userId) ?? throw new AppException(UserErrorCode.UserNotFound);
         var role = await roles.FindByIdAsync(roleId) ?? throw new AppException(RoleErrorCode.RoleNotFound);
@@ -38,7 +42,7 @@ public class RoleService(
         return await GetUserRolesAsync(userId);
     }
 
-    public async Task<List<UserRoleResponseDto>> RemoveRoleFromUserAsync(string userId, long roleId)
+    public async Task<List<UserRoleResponse>> RemoveRoleFromUserAsync(string userId, long roleId)
     {
         var user = await users.FindByIdAsync(userId) ?? throw new AppException(UserErrorCode.UserNotFound);
         var role = await roles.FindByIdAsync(roleId) ?? throw new AppException(RoleErrorCode.RoleNotFound);
@@ -48,7 +52,7 @@ public class RoleService(
         return await GetUserRolesAsync(userId);
     }
 
-    public async Task<List<UserRoleResponseDto>> ReplaceUserRolesAsync(string userId, UpdateUserRolesRequestDto dto)
+    public async Task<List<UserRoleResponse>> ReplaceUserRolesAsync(string userId, UpdateUserRolesRequest dto)
     {
         var user = await users.FindByIdAsync(userId) ?? throw new AppException(UserErrorCode.UserNotFound);
         var roleIds = dto.RoleIds ?? new HashSet<long>();
@@ -71,7 +75,7 @@ public class RoleService(
         return await GetUserRolesAsync(userId);
     }
 
-    public async Task<RoleResponseDto> CreateAsync(CreateRoleRequestDto dto)
+    public async Task<RoleResponse> CreateAsync(CreateRoleRequest dto)
     {
         var roleName = NormalizeRoleName(dto.Name);
         if (await roles.ExistsByNameAsync(roleName)) throw new AppException(RoleErrorCode.RoleAlreadyExists);
@@ -83,7 +87,7 @@ public class RoleService(
             var role = new Role { Name = roleName, Description = dto.Description, Permissions = loadedPermissions };
             db.Roles.Add(role);
             await db.SaveChangesAsync();
-            return RoleMapper.ToDto(role);
+            return RoleMapper.ToResponse(role);
         }
         catch
         {
@@ -92,13 +96,13 @@ public class RoleService(
         }
     }
 
-    public async Task<RoleResponseDto> GetByIdAsync(long id)
+    public async Task<RoleResponse> GetByIdAsync(long id)
     {
         var role = await roles.FindByIdAsync(id) ?? throw new AppException(RoleErrorCode.RoleNotFound);
-        return RoleMapper.ToDto(role);
+        return RoleMapper.ToResponse(role);
     }
 
-    public async Task<RoleResponseDto> UpdateAsync(long id, UpdateRoleRequestDto dto)
+    public async Task<RoleResponse> UpdateAsync(long id, UpdateRoleRequest dto)
     {
         var role = await roles.FindByIdAsync(id) ?? throw new AppException(RoleErrorCode.RoleNotFound);
         var oldName = role.Name;
@@ -121,7 +125,7 @@ public class RoleService(
         role.Description = dto.Description;
         if (dto.Permissions is not null) role.Permissions = await LoadPermissionsAsync(dto.Permissions);
         await db.SaveChangesAsync();
-        return RoleMapper.ToDto(role);
+        return RoleMapper.ToResponse(role);
     }
 
     public async Task DeleteAsync(long id)
@@ -139,10 +143,10 @@ public class RoleService(
         await db.SaveChangesAsync();
     }
 
-    public async Task<List<RoleResponseDto>> GetAllAsync(int page, int size)
+    public async Task<List<RoleResponse>> GetAllAsync(int page, int size)
     {
         var list = await roles.FindAllAsync(Math.Max(0, page) * Math.Max(1, size), Math.Max(1, size));
-        return list.Select(RoleMapper.ToDto).ToList();
+        return list.Select(RoleMapper.ToResponse).ToList();
     }
 
     private static string NormalizeRoleName(string? value)
