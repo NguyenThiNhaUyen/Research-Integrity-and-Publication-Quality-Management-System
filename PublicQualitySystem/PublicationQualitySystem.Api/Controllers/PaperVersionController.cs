@@ -8,38 +8,43 @@ using PublicationQualitySystem.Shared.Common;
 namespace PublicationQualitySystem.Api.Controllers;
 
 [Route("api/papers/{paperId:long}/versions")]
-public class PaperVersionController(IPaperVersionService paperVersionService) : BaseCrudController<
-    CreatePaperVersionRequest,
-    UpdatePaperVersionRequest,
-    PaperVersionResponse,
-    long>
+public class PaperVersionController(IPaperVersionService paperVersionService) : ApiBaseController
 {
-    protected override string? CreatePolicy => "PAPER_VERSION_UPLOAD";
-    protected override string? UpdatePolicy => "PAPER_VERSION_UPDATE";
-    protected override string? GetByIdPolicy => "PAPER_VERSION_READ";
-    protected override string? DeletePolicy => "PAPER_VERSION_DELETE";
+    [HttpPost]
+    [Authorize(Policy = "PAPER_VERSION_UPLOAD")]
+    public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> Create(
+        long paperId,
+        [FromBody] CreatePaperVersionRequest request) =>
+        OkResponse(await paperVersionService.CreateVersionAsync(paperId, request), "Paper version created successfully");
 
     [HttpGet]
     [Authorize(Policy = "PAPER_VERSION_READ")]
     public async Task<ActionResult<BaseResponse<List<PaperVersionResponse>>>> GetVersions(long paperId) =>
         OkResponse(await paperVersionService.GetVersionsAsync(paperId), "Paper versions retrieved successfully");
 
+    [HttpGet("{versionId:long}")]
+    [Authorize(Policy = "PAPER_VERSION_READ")]
+    public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> GetVersion(long paperId, long versionId) =>
+        OkResponse(await paperVersionService.GetVersionAsync(paperId, versionId), "Paper version retrieved successfully");
+
+    [HttpPut("{versionId:long}")]
+    [Authorize(Policy = "PAPER_VERSION_UPDATE")]
+    public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> Update(
+        long paperId,
+        long versionId,
+        [FromBody] UpdatePaperVersionRequest request) =>
+        OkResponse(await paperVersionService.UpdateVersionAsync(paperId, versionId, request), "Paper version updated successfully");
+
+    [HttpDelete("{versionId:long}")]
+    [Authorize(Policy = "PAPER_VERSION_DELETE")]
+    public async Task<ActionResult<BaseResponse<object>>> Delete(long paperId, long versionId)
+    {
+        await paperVersionService.DeleteVersionAsync(paperId, versionId);
+        return OkResponse<object>(null, "Paper version deleted successfully");
+    }
+
     [HttpPost("{versionId:long}/restore")]
     [Authorize(Policy = "PAPER_VERSION_RESTORE")]
     public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> Restore(long paperId, long versionId) =>
         OkResponse(await paperVersionService.RestoreVersionAsync(paperId, versionId), "Paper version restored successfully");
-
-    protected override Task<PaperVersionResponse> CreateEntityAsync(CreatePaperVersionRequest request) =>
-        paperVersionService.CreateVersionAsync(GetPaperId(), request);
-
-    protected override Task<PaperVersionResponse> GetEntityByIdAsync(long id) =>
-        paperVersionService.GetVersionAsync(GetPaperId(), id);
-
-    protected override Task<PaperVersionResponse> UpdateEntityAsync(long id, UpdatePaperVersionRequest request) =>
-        paperVersionService.UpdateVersionAsync(GetPaperId(), id, request);
-
-    protected override Task DeleteEntityAsync(long id) =>
-        paperVersionService.DeleteVersionAsync(GetPaperId(), id);
-
-    private long GetPaperId() => long.Parse(RouteData.Values["paperId"]?.ToString() ?? "0");
 }
