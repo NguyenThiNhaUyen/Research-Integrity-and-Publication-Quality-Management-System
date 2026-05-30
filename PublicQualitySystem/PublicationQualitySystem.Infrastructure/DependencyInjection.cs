@@ -24,15 +24,9 @@ public static class DependencyInjection
     {
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IRoleService, RoleService>();
-        services.AddScoped<IResearchProfileService, ResearchProfileService>();
-        services.AddScoped<IResearchGroupService, ResearchGroupService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICognitoGroupService, CognitoGroupService>();
         services.AddScoped<ICognitoUserService, CognitoUserService>();
-        services.AddScoped<IFileStorageService, S3FileService>();
-        services.AddScoped<IUploadService, UploadService>();
-        services.AddScoped<IPaperVersionService, PaperVersionService>();
-        services.AddScoped<IPdfOcrService, TextractOcrService>();
 
         return services;
     }

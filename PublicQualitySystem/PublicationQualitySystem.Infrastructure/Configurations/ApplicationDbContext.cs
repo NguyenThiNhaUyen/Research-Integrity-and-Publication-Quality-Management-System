@@ -11,14 +11,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
-    public DbSet<ResearchProfile> ResearchProfiles => Set<ResearchProfile>();
-    public DbSet<ResearchGroup> ResearchGroups => Set<ResearchGroup>();
-    public DbSet<ResearchGroupMember> ResearchGroupMembers => Set<ResearchGroupMember>();
-    public DbSet<Author> Authors => Set<Author>();
-    public DbSet<Paper> Papers => Set<Paper>();
-    public DbSet<PaperAuthor> PaperAuthors => Set<PaperAuthor>();
-    public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
-    public DbSet<UploadedFile> UploadedFiles => Set<UploadedFile>();
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,119 +51,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.Name).IsUnique();
         });
 
-        modelBuilder.Entity<ResearchProfile>(entity =>
-        {
-            entity.ToTable("research_profiles");
-            entity.Property(x => x.Institution).IsRequired().HasMaxLength(255);
-            entity.Property(x => x.Affiliation).HasMaxLength(255);
-            entity.Property(x => x.Department).HasMaxLength(255);
-            entity.Property(x => x.Specialization).HasMaxLength(255);
-            entity.Property(x => x.Orcid).HasMaxLength(50);
-            entity.HasIndex(x => x.Orcid).IsUnique();
-            entity.Property(x => x.ResearchInterests).HasColumnType("text");
-            entity.Property(x => x.Biography).HasColumnType("text");
-            entity.Property(x => x.AcademicRank).HasConversion<string>();
-            entity.Property(x => x.Status).HasConversion<string>();
-            entity.HasOne(x => x.User).WithOne(x => x.Profile).HasForeignKey<ResearchProfile>(x => x.UserId).IsRequired();
-            entity.HasIndex(x => x.UserId).IsUnique();
-        });
+       
 
-        modelBuilder.Entity<ResearchGroup>(entity =>
-        {
-            entity.ToTable("research_groups");
-            entity.Property(x => x.Name).IsRequired().HasMaxLength(255);
-            entity.HasIndex(x => x.Name).IsUnique();
-            entity.Property(x => x.Description).HasColumnType("text");
-            entity.Property(x => x.ResearchTopics).HasColumnType("text");
-            entity.Property(x => x.ActiveProjects).HasColumnType("text");
-            entity.Property(x => x.Specialization).HasMaxLength(255);
-            entity.Property(x => x.Institution).HasMaxLength(255);
-        });
-
-        modelBuilder.Entity<ResearchGroupMember>(entity =>
-        {
-            entity.ToTable("research_group_members");
-            entity.Property(x => x.Role).HasConversion<string>();
-            entity.Property(x => x.Status).HasConversion<string>();
-            entity.Property(x => x.Responsibilities).HasColumnType("text");
-            entity.HasOne(x => x.ResearchGroup).WithMany(x => x.Memberships).HasForeignKey(x => x.ResearchGroupId).IsRequired();
-            entity.HasOne(x => x.User).WithMany(x => x.GroupMemberships).HasForeignKey(x => x.UserId).IsRequired();
-            entity.HasIndex(x => new { x.ResearchGroupId, x.UserId });
-        });
-
-        modelBuilder.Entity<Author>(entity =>
-        {
-            entity.ToTable("authors");
-            entity.Property(x => x.FullName).HasColumnName("full_name").IsRequired();
-            entity.Property(x => x.Email).IsRequired();
-        });
-
-        modelBuilder.Entity<Paper>(entity =>
-        {
-            entity.ToTable("papers");
-            entity.Property(x => x.PaperCode).HasColumnName("paper_code").IsRequired();
-            entity.HasIndex(x => x.PaperCode).IsUnique();
-            entity.Property(x => x.Title).IsRequired();
-            entity.Property(x => x.AbstractText).HasColumnName("abstract_text").HasColumnType("text");
-            entity.Property(x => x.Keywords).HasColumnType("text");
-            entity.Property(x => x.ResearchField).HasColumnName("research_field");
-            entity.Property(x => x.FileUrl).HasColumnName("file_url");
-            entity.Property(x => x.FileType).HasColumnName("file_type");
-            entity.Property(x => x.S3Bucket).HasColumnName("s3_bucket").HasMaxLength(255);
-            entity.Property(x => x.S3Key).HasColumnName("s3_key").HasMaxLength(1000);
-            entity.Property(x => x.OwnerUserId).HasColumnName("owner_user_id").HasMaxLength(100);
-            entity.Property(x => x.ResearchGroupId).HasColumnName("research_group_id");
-            entity.Property(x => x.CurrentVersion).HasColumnName("current_version");
-            entity.Property(x => x.SubmissionStatus).HasColumnName("submission_status").HasConversion<string>();
-            entity.HasOne(x => x.OwnerUser).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(x => x.ResearchGroup).WithMany().HasForeignKey(x => x.ResearchGroupId).OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<PaperAuthor>(entity =>
-        {
-            entity.ToTable("paper_authors");
-            entity.Property(x => x.Role).HasColumnName("role").HasConversion<string>();
-            entity.HasOne(x => x.Paper).WithMany(x => x.Authors).HasForeignKey(x => x.PaperId);
-            entity.HasOne(x => x.Author).WithMany(x => x.PaperAuthors).HasForeignKey(x => x.AuthorId);
-        });
-
-        modelBuilder.Entity<PaperVersion>(entity =>
-        {
-            entity.ToTable("paper_versions");
-            entity.Property(x => x.UploadedFileId).HasColumnName("uploaded_file_id");
-            entity.Property(x => x.VersionNumber).HasColumnName("version_number");
-            entity.Property(x => x.VersionName).HasColumnName("version_name").HasMaxLength(255);
-            entity.Property(x => x.ChangeLog).HasColumnName("change_log").HasColumnType("text");
-            entity.Property(x => x.FileUrl).HasColumnName("file_url").IsRequired();
-            entity.Property(x => x.FileType).HasColumnName("file_type");
-            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").IsRequired().HasMaxLength(500);
-            entity.Property(x => x.FileKey).HasColumnName("file_key").IsRequired().HasMaxLength(1000);
-            entity.Property(x => x.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(255);
-            entity.Property(x => x.Size).HasColumnName("size");
-            entity.Property(x => x.UploadedBy).HasColumnName("uploaded_by").HasMaxLength(100);
-            entity.HasOne(x => x.Paper).WithMany(x => x.Versions).HasForeignKey(x => x.PaperId);
-            entity.HasOne(x => x.UploadedFile).WithMany(x => x.PaperVersions).HasForeignKey(x => x.UploadedFileId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(x => x.UploadedByUser).WithMany().HasForeignKey(x => x.UploadedBy).OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(x => new { x.PaperId, x.VersionNumber }).IsUnique();
-        });
-
-        modelBuilder.Entity<UploadedFile>(entity =>
-        {
-            entity.ToTable("uploaded_files");
-            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").IsRequired().HasMaxLength(500);
-            entity.Property(x => x.FileName).HasColumnName("file_name").IsRequired().HasMaxLength(500);
-            entity.Property(x => x.FileKey).HasColumnName("file_key").IsRequired().HasMaxLength(1000);
-            entity.Property(x => x.S3Bucket).HasColumnName("s3_bucket").IsRequired().HasMaxLength(255);
-            entity.Property(x => x.S3Key).HasColumnName("s3_key").IsRequired().HasMaxLength(1000);
-            entity.Property(x => x.Url).HasColumnName("url").IsRequired().HasMaxLength(1000);
-            entity.Property(x => x.ContentType).HasColumnName("content_type").IsRequired().HasMaxLength(255);
-            entity.Property(x => x.Size).HasColumnName("size");
-            entity.Property(x => x.UploadType).HasColumnName("upload_type").HasConversion<string>().IsRequired().HasMaxLength(100);
-            entity.Property(x => x.UploadedBy).HasColumnName("uploaded_by").HasMaxLength(100);
-            entity.HasIndex(x => x.FileKey).IsUnique();
-            entity.HasIndex(x => x.S3Key);
-            entity.HasOne(x => x.UploadedByUser).WithMany().HasForeignKey(x => x.UploadedBy).OnDelete(DeleteBehavior.Restrict);
-        });
+   
+      
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -197,8 +81,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             modelBuilder.Entity(entityType.ClrType).Property(nameof(IAuditableEntity.UpdatedAt)).IsRequired();
         }
 
-        modelBuilder.Entity<ResearchGroupMember>().Property(x => x.JoinedAt).HasConversion(dateOnlyConverter);
-        modelBuilder.Entity<ResearchGroupMember>().Property(x => x.LeftAt).HasConversion(dateOnlyConverter);
     }
 
     private static void ConfigureUtcDateTimes(ModelBuilder modelBuilder)
