@@ -1,12 +1,14 @@
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Application.DTOs.File;
+using PublicationQualitySystem.Application.DTOs.Paper;
 using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
-using PublicationQualitySystem.Shared.Constants;
+using PublicationQualitySystem.Infrastructure.Configurations;
 using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Infrastructure.Security;
+using PublicationQualitySystem.Shared.Constants;
 using PublicationQualitySystem.Shared.Exceptions;
 
 namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
@@ -15,6 +17,8 @@ public class UploadService(
     IFileStorageService fileStorageService,
     IUploadedFileRepository uploadedFiles,
     ICurrentUserProvider currentUser,
+    IPaperUploadProcessor paperUploadProcessor,
+    ApplicationDbContext db,
     IOptions<S3Options> s3Options,
     IOptions<AwsOptions> awsOptions,
     IOptions<ManuscriptUploadOptions> uploadOptions) : IUploadService
@@ -106,15 +110,26 @@ public class UploadService(
             UploadedBy = currentUser.Subject
         };
 
+        if (type != UploadType.PAPER)
+        {
+            await uploadedFiles.AddAsync(uploadedFile);
+            await uploadedFiles.SaveChangesAsync();
+            return ToResponse(uploadedFile);
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
         await uploadedFiles.AddAsync(uploadedFile);
         await uploadedFiles.SaveChangesAsync();
 
-        return ToResponse(uploadedFile);
+        var paperResult = await paperUploadProcessor.CreatePaperFromUploadedFileAsync(uploadedFile, file);
+        await transaction.CommitAsync();
+
+        return ToResponse(uploadedFile, paperResult);
     }
 
     public async Task<List<UploadedFileResponse>> GetFilesAsync() =>
         (await uploadedFiles.GetAllAsync())
-            .Select(ToResponse)
+            .Select(file => ToResponse(file))
             .ToList();
 
     public async Task<UploadedFileResponse> GetFileAsync(long fileId)
@@ -169,7 +184,9 @@ public class UploadService(
             : $"https://{bucket}.s3.{region}.amazonaws.com/{escapedKey}";
     }
 
-    private static UploadedFileResponse ToResponse(UploadedFile file) => new()
+    private static UploadedFileResponse ToResponse(
+        UploadedFile file,
+        PaperUploadProcessingResult? paper = null) => new()
     {
         FileId = file.Id,
         FileName = file.OriginalFileName,
@@ -179,6 +196,14 @@ public class UploadService(
         S3Key = string.IsNullOrWhiteSpace(file.S3Key) ? file.FileKey : file.S3Key,
         ContentType = file.ContentType,
         FileType = Path.GetExtension(file.OriginalFileName),
-        Size = file.Size
+        Size = file.Size,
+        PaperId = paper?.PaperId,
+        PaperCode = paper?.PaperCode,
+        Title = paper?.Title,
+        AbstractText = paper?.AbstractText,
+        Keywords = paper?.Keywords,
+        ResearchField = paper?.ResearchField,
+        CurrentVersion = paper?.CurrentVersion,
+        SubmissionStatus = paper?.SubmissionStatus
     };
 }

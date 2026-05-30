@@ -22,7 +22,7 @@ public class PaperVersionService(
     ICurrentUserProvider currentUser,
     IOptions<ManuscriptUploadOptions> uploadOptions) : IPaperVersionService
 {
-    public async Task<PaperVersionResponse> CreateVersionAsync(long paperId, CreatePaperVersionRequest request)
+    public async Task<PaperVersionResponse> CreateVersionAsync(CreatePaperVersionRequest request)
     {
         var paper = await GetAuthorizedPaperAsync(paperId);
         var uploadedFile = await uploadedFiles.FindByIdAsync(request.FileId)

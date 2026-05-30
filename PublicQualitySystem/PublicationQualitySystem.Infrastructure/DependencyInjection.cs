@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<ICognitoUserService, CognitoUserService>();
         services.AddScoped<IFileStorageService, S3FileService>();
         services.AddScoped<IUploadService, UploadService>();
+        services.AddScoped<IPaperUploadProcessor, PaperUploadProcessor>();
         services.AddScoped<IPaperVersionService, PaperVersionService>();
         services.AddScoped<IPdfOcrService, TextractOcrService>();
 

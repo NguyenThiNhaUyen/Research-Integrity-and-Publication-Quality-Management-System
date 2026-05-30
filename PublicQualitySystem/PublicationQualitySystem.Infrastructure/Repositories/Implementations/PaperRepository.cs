@@ -7,6 +7,21 @@ namespace PublicationQualitySystem.Infrastructure.Repositories.Implementations;
 
 public class PaperRepository(ApplicationDbContext db) : IPaperRepository
 {
+    public async Task<Paper> CreateAsync(Paper paper)
+    {
+        try
+        {
+            db.Papers.Add(paper);
+            await db.SaveChangesAsync();
+            return paper;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error creating paper: {ex.Message}");
+            throw;
+        }
+    }
+
     public Task<Paper?> FindByIdWithAccessDataAsync(long id) =>
         db.Papers
             .Include(p => p.ResearchGroup)
