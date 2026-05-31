@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Infrastructure.Configurations;
+using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 namespace PublicationQualitySystem.Infrastructure;
@@ -29,13 +30,24 @@ public static class DependencyInjection
         services.AddScoped<ICognitoUserService, CognitoUserService>();
         services.AddScoped<IFileStorageService, S3FileStorageService>();
         services.AddScoped<IPaperService, PaperService>();
-        services.AddSingleton<IPaperOcrQueue, PaperOcrQueue>();
-        services.AddHostedService<PaperOcrBackgroundService>();
+        services.AddOptions<KafkaOptions>().BindConfiguration("Kafka");
+        services.AddHostedService<KafkaTopicInitializerHostedService>();
+        services.AddHostedService<KafkaOutboxPublisherBackgroundService>();
+        services.AddHostedService<PaperOcrKafkaConsumerBackgroundService>();
+        services.AddHostedService<PaperMetadataKafkaConsumerBackgroundService>();
         services.AddHttpClient<INougatService, NougatService>((provider, client) =>
         {
             var configuration = provider.GetRequiredService<IConfiguration>();
             var baseUrl = configuration["Nougat:BaseUrl"] ?? "http://nougat-service:8001";
             var timeoutMinutes = configuration.GetValue("Nougat:TimeoutMinutes", 30);
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
+        });
+        services.AddHttpClient<IGrobidService, GrobidService>((provider, client) =>
+        {
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var baseUrl = configuration["Grobid:BaseUrl"] ?? "http://grobid:8070";
+            var timeoutMinutes = configuration.GetValue("Grobid:TimeoutMinutes", 10);
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
         });

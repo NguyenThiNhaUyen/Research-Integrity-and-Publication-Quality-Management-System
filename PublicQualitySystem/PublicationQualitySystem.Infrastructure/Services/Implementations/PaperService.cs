@@ -1,10 +1,15 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using PublicationQualitySystem.Application.DTOs.Grobid;
+using PublicationQualitySystem.Application.DTOs.IntegrationEvents;
 using PublicationQualitySystem.Application.DTOs.Paper;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Infrastructure.Configurations;
+using PublicationQualitySystem.Infrastructure.Options;
+using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Shared.Exceptions;
 
 namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
@@ -12,9 +17,11 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 public class PaperService(
     ApplicationDbContext db,
     IFileStorageService storage,
-    IPaperOcrQueue paperOcrQueue,
+    IOptions<KafkaOptions> kafkaOptions,
     ILogger<PaperService> logger) : IPaperService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<PaperVersionResponse> UploadPaperAsync(
         Stream pdfStream,
         string fileName,
@@ -58,6 +65,8 @@ public class PaperService(
             pdfBytes.Length,
             stopwatch.ElapsedMilliseconds);
 
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
         var paper = new Paper
         {
             Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(fileName) : title.Trim()
@@ -70,7 +79,7 @@ public class PaperService(
             uploadId,
             paper.Id,
             stopwatch.ElapsedMilliseconds);
-
+        
         var version = new PaperVersion
         {
             PaperId = paper.Id,
@@ -106,21 +115,44 @@ public class PaperService(
             version.Id,
             stopwatch.ElapsedMilliseconds);
 
-        version.ConversionStatus = ConversionStatus.Processing;
-        version.ConversionError = null;
+        var metadata = new PaperMetadata
+        {
+            PaperId = paper.Id,
+            ExtractionStatus = MetadataExtractionStatus.Pending
+        };
+        db.PaperMetadata.Add(metadata);
         logger.LogInformation(
-            "Marking conversion as Processing. UploadId={UploadId}, PaperVersionId={PaperVersionId}",
+            "Creating PaperMetadata placeholder. UploadId={UploadId}, PaperId={PaperId}, PaperVersionId={PaperVersionId}",
             uploadId,
+            paper.Id,
             version.Id);
-        await db.SaveChangesAsync(cancellationToken);
+        
+        var integrationEvent = new PaperUploadedIntegrationEvent
+        {
+            PaperId = paper.Id,
+            PaperVersionId = version.Id,
+            PdfS3Key = version.PdfS3Key,
+            OriginalFileName = version.OriginalFileName,
+            UploadedAt = DateTime.UtcNow
+        };
 
-        await paperOcrQueue.QueueAsync(new PaperOcrJob(version.Id), cancellationToken);
+        db.OutboxMessages.Add(new OutboxMessage
+        {
+            Topic = kafkaOptions.Value.PaperUploadedTopic,
+            Key = paper.Id.ToString(),
+            Type = nameof(PaperUploadedIntegrationEvent),
+            Payload = JsonSerializer.Serialize(integrationEvent, JsonOptions),
+            Status = OutboxMessageStatus.Pending
+        });
+        await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
         logger.LogInformation(
-            "Paper OCR job queued. UploadId={UploadId}, PaperId={PaperId}, PaperVersionId={PaperVersionId}, PdfS3Key={PdfS3Key}, ElapsedMs={ElapsedMs}",
+            "Paper uploaded integration event saved to outbox. UploadId={UploadId}, PaperId={PaperId}, PaperVersionId={PaperVersionId}, Topic={Topic}, ElapsedMs={ElapsedMs}",
             uploadId,
             paper.Id,
             version.Id,
-            version.PdfS3Key,
+            kafkaOptions.Value.PaperUploadedTopic,
             stopwatch.ElapsedMilliseconds);
 
         logger.LogInformation(
@@ -132,6 +164,46 @@ public class PaperService(
             stopwatch.ElapsedMilliseconds);
 
         return ToResponse(paper, version);
+    }
+
+    public async Task<PaperMetadataResponse> GetMetadataAsync(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        var paperExists = await db.Papers.AnyAsync(x => x.Id == paperId, cancellationToken);
+        if (!paperExists)
+        {
+            throw new AppException(PaperErrorCode.NotFound);
+        }
+
+        var metadata = await db.PaperMetadata
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.PaperId == paperId, cancellationToken);
+
+        if (metadata is null)
+        {
+            throw new AppException(PaperErrorCode.MetadataNotFound);
+        }
+
+        return new PaperMetadataResponse
+        {
+            PaperId = metadata.PaperId,
+            Title = metadata.Title,
+            Authors = DeserializeJson<IReadOnlyList<AuthorDto>>(metadata.AuthorsJson) ?? Array.Empty<AuthorDto>(),
+            Abstract = metadata.Abstract,
+            Doi = metadata.Doi,
+            ArxivId = metadata.ArxivId,
+            Journal = metadata.Journal,
+            Publisher = metadata.Publisher,
+            Venue = metadata.Venue,
+            ConferenceName = metadata.ConferenceName,
+            PublicationYear = metadata.PublicationYear,
+            Keywords = DeserializeJson<IReadOnlyList<string>>(metadata.KeywordsJson) ?? Array.Empty<string>(),
+            References = DeserializeJson<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>(),
+            ExtractionStatus = metadata.ExtractionStatus,
+            ExtractedAt = metadata.ExtractedAt,
+            ExtractionError = metadata.ExtractionError
+        };
     }
 
     private static bool IsPdf(string fileName, string contentType) =>
@@ -157,4 +229,21 @@ public class PaperService(
         ConvertedAt = version.ConvertedAt,
         ConversionError = version.ConversionError
     };
+
+    private static T? DeserializeJson<T>(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return default;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<T>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return default;
+        }
+    }
 }

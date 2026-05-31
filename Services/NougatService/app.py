@@ -43,6 +43,7 @@ BATCH_SIZE = int(os.environ.get("NOUGAT_BATCH_SIZE", LEGACY_BATCH_SIZE or defaul
 MAX_WORKERS = int(os.environ.get("NOUGAT_MAX_WORKERS", "2"))
 MAX_RETRY = int(os.environ.get("NOUGAT_MAX_RETRY", "3"))
 MODEL_TAG = os.environ.get("NOUGAT_MODEL", "0.1.0-small")
+USE_CUDA = os.environ.get("NOUGAT_USE_CUDA", "false").lower() in {"1", "true", "yes", "on"}
 
 app = FastAPI(title="RIPQMS Nougat OCR Service")
 model: NougatModel | None = None
@@ -63,7 +64,10 @@ async def load_model() -> None:
     )
     checkpoint = get_checkpoint(model_tag=MODEL_TAG)
     model = NougatModel.from_pretrained(checkpoint)
-    model = move_to_device(model, cuda=BATCH_SIZE > 0)
+    cuda_enabled = USE_CUDA and torch.cuda.is_available()
+    if USE_CUDA and not cuda_enabled:
+        logger.warning("NOUGAT_USE_CUDA=true but CUDA is not available. Falling back to CPU.")
+    model = move_to_device(model, cuda=cuda_enabled)
     if BATCH_SIZE <= 0:
         BATCH_SIZE = 1
     model.eval()

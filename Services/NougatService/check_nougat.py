@@ -1,13 +1,10 @@
-import importlib.metadata
+import json
+import urllib.request
 
-import pypdfium2
-from nougat import NougatModel
+with urllib.request.urlopen("http://127.0.0.1:8001/health", timeout=5) as response:
+    body = json.loads(response.read().decode("utf-8"))
 
-if not hasattr(pypdfium2.PdfDocument, "render"):
-    version = importlib.metadata.version("pypdfium2")
-    raise RuntimeError(
-        "pypdfium2 is incompatible with nougat-ocr==0.1.17: "
-        f"PdfDocument.render() is missing. Installed pypdfium2={version}."
-    )
+if response.status != 200 or body.get("status") != "ok":
+    raise RuntimeError(f"Nougat health check failed: status={response.status}, body={body}")
 
-print("Nougat loaded successfully")
+print("Nougat health check passed")

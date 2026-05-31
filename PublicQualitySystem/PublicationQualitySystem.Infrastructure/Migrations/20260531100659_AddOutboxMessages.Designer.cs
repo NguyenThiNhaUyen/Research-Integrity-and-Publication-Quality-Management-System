@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PublicationQualitySystem.Infrastructure.Configurations;
@@ -11,9 +12,11 @@ using PublicationQualitySystem.Infrastructure.Configurations;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260531100659_AddOutboxMessages")]
+    partial class AddOutboxMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -144,18 +147,10 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("abstract");
 
-                    b.Property<string>("ArxivId")
-                        .HasColumnType("text")
-                        .HasColumnName("arxiv_id");
-
                     b.Property<string>("AuthorsJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("authors_json");
-
-                    b.Property<string>("ConferenceName")
-                        .HasColumnType("text")
-                        .HasColumnName("conference_name");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -228,10 +223,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
 
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("text");
-
-                    b.Property<string>("Venue")
-                        .HasColumnType("text")
-                        .HasColumnName("venue");
 
                     b.HasKey("Id");
 

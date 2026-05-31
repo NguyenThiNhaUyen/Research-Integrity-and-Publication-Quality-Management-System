@@ -11,8 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY check_nougat.py .
+COPY check_imports.py .
 
-RUN python check_nougat.py
+RUN python check_imports.py
 
 RUN mkdir -p /app/temp
 

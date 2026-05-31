@@ -39,4 +39,21 @@ public class PaperController(IPaperService paperService, ILogger<PaperController
 
         return CreatedResponse(result);
     }
+
+    [HttpGet("{paperId:long}/metadata")]
+    public async Task<ActionResult<BaseResponse<PaperMetadataResponse>>> GetMetadata(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Paper metadata request received. PaperId={PaperId}", paperId);
+
+        var result = await paperService.GetMetadataAsync(paperId, cancellationToken);
+
+        logger.LogInformation(
+            "Paper metadata request completed. PaperId={PaperId}, ExtractionStatus={ExtractionStatus}",
+            result.PaperId,
+            result.ExtractionStatus);
+
+        return OkResponse(result, "Success");
+    }
 }

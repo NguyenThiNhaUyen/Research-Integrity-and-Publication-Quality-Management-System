@@ -10,4 +10,8 @@ public interface IPaperService
         string contentType,
         string? title,
         CancellationToken cancellationToken);
+
+    Task<PaperMetadataResponse> GetMetadataAsync(
+        long paperId,
+        CancellationToken cancellationToken);
 }

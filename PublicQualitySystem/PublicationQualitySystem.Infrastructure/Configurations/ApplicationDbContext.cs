@@ -13,6 +13,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<Paper> Papers => Set<Paper>();
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
+    public DbSet<PaperMetadata> PaperMetadata => Set<PaperMetadata>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -62,6 +64,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithOne(x => x.Paper)
                 .HasForeignKey(x => x.PaperId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Metadata)
+                .WithOne(x => x.Paper)
+                .HasForeignKey<PaperMetadata>(x => x.PaperId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PaperVersion>(entity =>
@@ -80,6 +86,51 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.ConvertedAt).HasColumnName("converted_at");
             entity.Property(x => x.ConversionError).HasColumnName("conversion_error").HasMaxLength(4000);
             entity.HasIndex(x => new { x.PaperId, x.VersionNumber }).IsUnique();
+        });
+
+        modelBuilder.Entity<PaperMetadata>(entity =>
+        {
+            entity.ToTable("paper_metadata");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.Title).HasColumnName("title").HasMaxLength(500);
+            entity.Property(x => x.Abstract).HasColumnName("abstract").HasColumnType("text");
+            entity.Property(x => x.Doi).HasColumnName("doi").HasMaxLength(255);
+            entity.Property(x => x.ArxivId).HasColumnName("arxiv_id").HasColumnType("text");
+            entity.Property(x => x.Journal).HasColumnName("journal").HasMaxLength(500);
+            entity.Property(x => x.Publisher).HasColumnName("publisher").HasMaxLength(500);
+            entity.Property(x => x.Venue).HasColumnName("venue").HasColumnType("text");
+            entity.Property(x => x.ConferenceName).HasColumnName("conference_name").HasColumnType("text");
+            entity.Property(x => x.PublicationYear).HasColumnName("publication_year");
+            entity.Property(x => x.KeywordsJson).HasColumnName("keywords_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.AuthorsJson).HasColumnName("authors_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.ReferencesJson).HasColumnName("references_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.RawGrobidXml).HasColumnName("raw_grobid_xml").HasColumnType("text");
+            entity.Property(x => x.ExtractionStatus)
+                .HasColumnName("extraction_status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.ExtractionError).HasColumnName("extraction_error").HasMaxLength(4000);
+            entity.Property(x => x.ExtractedAt).HasColumnName("extracted_at");
+            entity.HasIndex(x => x.PaperId).IsUnique();
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("outbox_messages");
+            entity.Property(x => x.Topic).HasColumnName("topic").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Key).HasColumnName("key").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Type).HasColumnName("type").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.Payload).HasColumnName("payload").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.RetryCount).HasColumnName("retry_count");
+            entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(4000);
+            entity.Property(x => x.PublishedAt).HasColumnName("published_at");
+            entity.HasIndex(x => new { x.Status, x.CreatedAt });
         });
 
    
