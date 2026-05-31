@@ -11,6 +11,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<Paper> Papers => Set<Paper>();
+    public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -51,7 +53,34 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.Name).IsUnique();
         });
 
-       
+        modelBuilder.Entity<Paper>(entity =>
+        {
+            entity.ToTable("papers");
+            entity.Property(x => x.Title).HasColumnName("title").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.CurrentVersion).HasColumnName("current_version");
+            entity.HasMany(x => x.Versions)
+                .WithOne(x => x.Paper)
+                .HasForeignKey(x => x.PaperId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PaperVersion>(entity =>
+        {
+            entity.ToTable("paper_versions");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.VersionNumber).HasColumnName("version_number");
+            entity.Property(x => x.OriginalFileName).HasColumnName("original_file_name").IsRequired().HasMaxLength(500);
+            entity.Property(x => x.PdfS3Key).HasColumnName("pdf_s3_key").IsRequired().HasMaxLength(1024);
+            entity.Property(x => x.MarkdownS3Key).HasColumnName("markdown_s3_key").HasMaxLength(1024);
+            entity.Property(x => x.ConversionStatus)
+                .HasColumnName("conversion_status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.ConvertedAt).HasColumnName("converted_at");
+            entity.Property(x => x.ConversionError).HasColumnName("conversion_error").HasMaxLength(4000);
+            entity.HasIndex(x => new { x.PaperId, x.VersionNumber }).IsUnique();
+        });
 
    
       
