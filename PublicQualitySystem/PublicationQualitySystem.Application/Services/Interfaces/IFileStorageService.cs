@@ -7,4 +7,8 @@ public interface IFileStorageService
         string key,
         string contentType,
         CancellationToken cancellationToken);
+
+    Task<Stream> DownloadAsync(
+        string key,
+        CancellationToken cancellationToken);
 }

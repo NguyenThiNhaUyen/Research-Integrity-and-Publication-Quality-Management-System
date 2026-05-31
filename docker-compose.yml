@@ -9,6 +9,9 @@ services:
     environment:
       NOUGAT_TEMP_DIR: /app/temp
       NOUGAT_MODEL: 0.1.0-small
+      NOUGAT_MAX_WORKERS: 2
+      NOUGAT_BATCH_SIZE: 2
+      NOUGAT_MAX_RETRY: 3
     volumes:
       - ./temp:/app/temp
     healthcheck:

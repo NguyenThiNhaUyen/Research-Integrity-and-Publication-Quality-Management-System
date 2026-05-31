@@ -1,4 +1,3 @@
-using System.Text;
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Application.DTOs.Paper;
@@ -13,7 +12,7 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 public class PaperService(
     ApplicationDbContext db,
     IFileStorageService storage,
-    INougatService nougat,
+    IPaperOcrQueue paperOcrQueue,
     ILogger<PaperService> logger) : IPaperService
 {
     public async Task<PaperVersionResponse> UploadPaperAsync(
@@ -108,85 +107,22 @@ public class PaperService(
             stopwatch.ElapsedMilliseconds);
 
         version.ConversionStatus = ConversionStatus.Processing;
+        version.ConversionError = null;
         logger.LogInformation(
             "Marking conversion as Processing. UploadId={UploadId}, PaperVersionId={PaperVersionId}",
             uploadId,
             version.Id);
         await db.SaveChangesAsync(cancellationToken);
 
-        try
-        {
-            logger.LogInformation(
-                "Calling Nougat OCR service. UploadId={UploadId}, PaperVersionId={PaperVersionId}, FileName={FileName}, Bytes={Bytes}",
-                uploadId,
-                version.Id,
-                fileName,
-                pdfBytes.Length);
-            await using var nougatStream = new MemoryStream(pdfBytes);
-            var markdown = await nougat.ConvertPdfToMarkdownAsync(nougatStream, fileName, cancellationToken);
-            logger.LogInformation(
-                "Nougat OCR service returned. UploadId={UploadId}, PaperVersionId={PaperVersionId}, MarkdownLength={MarkdownLength}, ElapsedMs={ElapsedMs}",
-                uploadId,
-                version.Id,
-                markdown?.Length ?? 0,
-                stopwatch.ElapsedMilliseconds);
-            if (string.IsNullOrWhiteSpace(markdown))
-            {
-                logger.LogWarning(
-                    "Nougat OCR returned empty markdown. UploadId={UploadId}, PaperVersionId={PaperVersionId}",
-                    uploadId,
-                    version.Id);
-                throw new AppException(NougatErrorCode.InvalidResponse);
-            }
+        await paperOcrQueue.QueueAsync(new PaperOcrJob(version.Id), cancellationToken);
+        logger.LogInformation(
+            "Paper OCR job queued. UploadId={UploadId}, PaperId={PaperId}, PaperVersionId={PaperVersionId}, PdfS3Key={PdfS3Key}, ElapsedMs={ElapsedMs}",
+            uploadId,
+            paper.Id,
+            version.Id,
+            version.PdfS3Key,
+            stopwatch.ElapsedMilliseconds);
 
-            var markdownKey = BuildMarkdownS3Key(fileName);
-
-            logger.LogInformation(
-                "Uploading generated Markdown to S3. UploadId={UploadId}, PaperVersionId={PaperVersionId}, MarkdownS3Key={MarkdownS3Key}, MarkdownLength={MarkdownLength}",
-                uploadId,
-                version.Id,
-                markdownKey,
-                markdown.Length);
-            await using var markdownStream = new MemoryStream(Encoding.UTF8.GetBytes(markdown));
-            await storage.UploadAsync(markdownStream, markdownKey, "text/markdown; charset=utf-8", cancellationToken);
-            logger.LogInformation(
-                "Markdown uploaded to S3. UploadId={UploadId}, PaperVersionId={PaperVersionId}, MarkdownS3Key={MarkdownS3Key}, ElapsedMs={ElapsedMs}",
-                uploadId,
-                version.Id,
-                markdownKey,
-                stopwatch.ElapsedMilliseconds);
-
-            version.MarkdownS3Key = markdownKey;
-            version.ConversionStatus = ConversionStatus.Completed;
-            version.ConvertedAt = DateTime.UtcNow;
-            version.ConversionError = null;
-            logger.LogInformation(
-                "Conversion completed. UploadId={UploadId}, PaperVersionId={PaperVersionId}, ElapsedMs={ElapsedMs}",
-                uploadId,
-                version.Id,
-                stopwatch.ElapsedMilliseconds);
-        }
-        catch (Exception ex) when (ex is not AppException { ErrorCode.StatusCode: System.Net.HttpStatusCode.BadRequest })
-        {
-            logger.LogError(
-                ex,
-                "Conversion failed. UploadId={UploadId}, PaperVersionId={PaperVersionId}, ElapsedMs={ElapsedMs}",
-                uploadId,
-                version.Id,
-                stopwatch.ElapsedMilliseconds);
-            version.ConversionStatus = ConversionStatus.Failed;
-            version.ConversionError = ex.Message;
-            await db.SaveChangesAsync(cancellationToken);
-
-            if (ex is AppException)
-            {
-                throw;
-            }
-
-            throw new AppException(NougatErrorCode.ConversionFailed, ex.Message);
-        }
-
-        await db.SaveChangesAsync(cancellationToken);
         logger.LogInformation(
             "Paper upload finished. UploadId={UploadId}, PaperId={PaperId}, PaperVersionId={PaperVersionId}, ConversionStatus={ConversionStatus}, ElapsedMs={ElapsedMs}",
             uploadId,
@@ -206,13 +142,6 @@ public class PaperService(
     {
         var safeName = string.Join("_", fileName.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
         return $"{folder}/{paperId}/{Guid.NewGuid():N}-{safeName}";
-    }
-
-    private static string BuildMarkdownS3Key(string fileName)
-    {
-        var name = Path.GetFileNameWithoutExtension(fileName);
-        var safeName = string.Join("_", name.Split(Path.GetInvalidFileNameChars(), StringSplitOptions.RemoveEmptyEntries));
-        return $"papers/markdown/{Guid.NewGuid():N}-{safeName}.md";
     }
 
     private static PaperVersionResponse ToResponse(Paper paper, PaperVersion version) => new()

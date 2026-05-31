@@ -79,4 +79,63 @@ public class S3FileStorageService(
 
         return key;
     }
+
+    public async Task<Stream> DownloadAsync(
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var bucket = options.Value.Bucket;
+        if (string.IsNullOrWhiteSpace(bucket))
+        {
+            logger.LogError("S3 download failed because bucket is not configured. Key={Key}", key);
+            throw new AppException(PaperErrorCode.StorageFailed, "AWS S3 bucket is not configured.");
+        }
+
+        logger.LogInformation("S3 download started. Bucket={Bucket}, Key={Key}", bucket, key);
+
+        try
+        {
+            using var response = await s3.GetObjectAsync(new GetObjectRequest
+            {
+                BucketName = bucket,
+                Key = key
+            }, cancellationToken);
+
+            var memoryStream = new MemoryStream();
+            await response.ResponseStream.CopyToAsync(memoryStream, cancellationToken);
+            memoryStream.Position = 0;
+
+            logger.LogInformation(
+                "S3 download completed. Bucket={Bucket}, Key={Key}, Bytes={Bytes}, ElapsedMs={ElapsedMs}",
+                bucket,
+                key,
+                memoryStream.Length,
+                stopwatch.ElapsedMilliseconds);
+
+            return memoryStream;
+        }
+        catch (AmazonS3Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "S3 download failed. Bucket={Bucket}, Key={Key}, StatusCode={StatusCode}, ErrorCode={ErrorCode}, ElapsedMs={ElapsedMs}",
+                bucket,
+                key,
+                ex.StatusCode,
+                ex.ErrorCode,
+                stopwatch.ElapsedMilliseconds);
+            throw new AppException(PaperErrorCode.StorageFailed, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "S3 download failed unexpectedly. Bucket={Bucket}, Key={Key}, ElapsedMs={ElapsedMs}",
+                bucket,
+                key,
+                stopwatch.ElapsedMilliseconds);
+            throw;
+        }
+    }
 }

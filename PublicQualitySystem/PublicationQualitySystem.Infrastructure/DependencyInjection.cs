@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<ICognitoUserService, CognitoUserService>();
         services.AddScoped<IFileStorageService, S3FileStorageService>();
         services.AddScoped<IPaperService, PaperService>();
+        services.AddSingleton<IPaperOcrQueue, PaperOcrQueue>();
+        services.AddHostedService<PaperOcrBackgroundService>();
         services.AddHttpClient<INougatService, NougatService>((provider, client) =>
         {
             var configuration = provider.GetRequiredService<IConfiguration>();
