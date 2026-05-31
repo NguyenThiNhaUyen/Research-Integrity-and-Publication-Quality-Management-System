@@ -27,6 +27,16 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<ICognitoGroupService, CognitoGroupService>();
         services.AddScoped<ICognitoUserService, CognitoUserService>();
+        services.AddScoped<IFileStorageService, S3FileStorageService>();
+        services.AddScoped<IPaperService, PaperService>();
+        services.AddHttpClient<INougatService, NougatService>((provider, client) =>
+        {
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var baseUrl = configuration["Nougat:BaseUrl"] ?? "http://nougat-service:8001";
+            var timeoutMinutes = configuration.GetValue("Nougat:TimeoutMinutes", 30);
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
+        });
 
         return services;
     }

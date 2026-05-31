@@ -7,6 +7,7 @@
 - [Modular Monolith Refactor](modular-monolith-refactor.md)
 - [Task Plan](task-plan.md)
 
-## Upload And Paper Version
+## Nougat OCR
 
-- [Upload va Paper Version Flow](upload-version-flow.md)
+- [Nougat Service README](../Services/NougatService/README.md)
+- [Nougat Paper Workflow](nougat-paper-workflow.md)

@@ -1,30 +1,20 @@
 services:
-  publication-api:
+  nougat-service:
     build:
-      context: .
-      dockerfile: PublicQualitySystem/PublicationQualitySystem.Api/Dockerfile
-    container_name: publication-quality-api
+      context: ./Services/NougatService
+      dockerfile: Dockerfile
+    container_name: ripqms-nougat-service
     ports:
-      - "8080:8080"
+      - "8001:8001"
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=PublicationQualityDB;Username=postgres;Password=123456
-    depends_on:
-      - postgres
-
-  postgres:
-    image: postgres:18
-    container_name: publication-quality-postgres
-    restart: always
-    environment:
-      POSTGRES_DB: PublicationQualityDB
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 123456
-    ports:
-      - "5433:5432"
+      NOUGAT_TEMP_DIR: /app/temp
+      NOUGAT_MODEL: 0.1.0-small
     volumes:
-      - publication_pgdata:/var/lib/postgresql/data
-
-volumes:
-  publication_pgdata:
+      - ./temp:/app/temp
+    healthcheck:
+      test: ["CMD", "python", "/app/check_nougat.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]

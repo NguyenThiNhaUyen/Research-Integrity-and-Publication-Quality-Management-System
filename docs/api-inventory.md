@@ -11,10 +11,9 @@ Danh sach nay duoc lap tu controller hien tai trong `PublicationQualitySystem/Co
 | `RoleController` | 9 | Roles |
 | `ResearchProfileController` | 5 | Research Profiles |
 | `ResearchGroupController` | 12 | Research Groups |
-| `UploadController` | 1 | Files/Upload |
-| `S3Controller` | 1 | Files/S3 |
+| `PaperController` | 1 | Papers/Nougat OCR |
 
-Tong endpoint hien tai: 37.
+Tong endpoint hien tai: can duoc cap nhat lai sau dot reset Paper/OCR.
 
 ## AuthController
 
@@ -86,29 +85,21 @@ Base route: `/api/lab-members/research-groups`
 | PATCH | `/api/lab-members/research-groups/{groupId}/leader/{userId}` | `AssignLeader` | None | `BaseResponse<ResearchGroupMemberDto>` | `[Authorize]` | `RESEARCH_GROUP_MEMBER_MANAGE` | Yes | |
 | GET | `/api/lab-members/research-groups/users/{userId}` | `GetGroupsByUser` | None | `BaseResponse<List<ResearchGroupDto>>` | `[Authorize]` | `RESEARCH_GROUP_READ` | Yes | |
 
-## UploadController
+## PaperController
 
-Base route: `/api/uploads`
-
-| Method | Route | Action | Request DTO | Response DTO | Authorization | Policy/Permission | JWT Required | Ghi chu |
-|---|---|---|---|---|---|---|---|---|
-| POST | `/api/uploads` | `Upload` | `multipart/form-data`: `file`, `type` | `BaseResponse<S3FileResponseDto>` | `[Authorize]` | `FILE_UPLOAD` | Yes | Upload len S3 |
-
-## S3Controller
-
-Base route: `/api/s3`
+Base route: `/api/papers`
 
 | Method | Route | Action | Request DTO | Response DTO | Authorization | Policy/Permission | JWT Required | Ghi chu |
 |---|---|---|---|---|---|---|---|---|
-| DELETE | `/api/s3?fileKey={fileKey}` | `Delete` | Query: `fileKey` | `BaseResponse<object>` | `[Authorize]` | `FILE_DELETE` | Yes | Xoa object S3 |
+| POST | `/api/papers/upload` | `Upload` | `multipart/form-data`: `file`, `title?` | `BaseResponse<PaperVersionResponse>` | Fallback policy | Authenticated user | Yes | Upload PDF len S3, tao Paper/PaperVersion, goi Nougat, upload Markdown len S3 |
 
 ## Missing API By Workflow
 
 | Module | API status | Ghi chu |
 |---|---|---|
 | Permissions | Missing public API | Entity/repository/enum co |
-| Papers | Missing API | Entity co |
-| Paper Versions | Missing API | Entity co |
+| Papers | Initial upload API done | `POST /api/papers/upload` |
+| Paper Versions | Created by upload workflow | Chua co list/get endpoint |
 | Authors | Missing API | Entity co |
 | Quality Reports | Missing API | Permission enum co |
 | Integrity Reports | Missing API | Permission enum co |
@@ -135,4 +126,3 @@ Base route: `/api/s3`
 | Validation response | Co mot phan | Them `errors[]` neu muon standard QA |
 | Raw entity response | Khong thay | Dang dung DTO |
 | Swagger/OpenAPI | Co | Can annotations/examples |
-
