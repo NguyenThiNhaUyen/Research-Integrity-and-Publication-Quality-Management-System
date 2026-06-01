@@ -16,13 +16,15 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         }
         catch (AppException exception)
         {
-            await WriteError(context, exception.ErrorCode.StatusCode, exception.ErrorCode.Code, exception.Message);
+            var statusCode = (int)exception.ErrorCode.StatusCode;
+            await WriteError(context, statusCode, statusCode, exception.Message);
         }
         catch (AmazonCognitoIdentityProviderException exception)
         {
             logger.LogError(exception, "Cognito error");
             var message = $"Cognito error [{exception.ErrorCode ?? "UNKNOWN"}]: {exception.Message}";
-            await WriteError(context, AuthErrorCode.CognitoError.StatusCode, AuthErrorCode.CognitoError.Code, message);
+            var statusCode = (int)AuthErrorCode.CognitoError.StatusCode;
+            await WriteError(context, statusCode, statusCode, message);
         }
         catch (Exception exception)
         {

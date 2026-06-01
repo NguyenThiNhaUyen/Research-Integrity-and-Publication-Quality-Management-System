@@ -1,10 +1,14 @@
-using PublicationQualitySystem.Application.DTOs.File;
-
 namespace PublicationQualitySystem.Application.Services.Interfaces;
 
 public interface IFileStorageService
 {
-    Task<string> UploadAsync(FileUploadRequest file, string folder);
-    Task DeleteAsync(string fileKey);
-    string GeneratePresignedDownloadUrl(string fileKey, DateTime expiresAt);
+    Task<string> UploadAsync(
+        Stream content,
+        string key,
+        string contentType,
+        CancellationToken cancellationToken);
+
+    Task<Stream> DownloadAsync(
+        string key,
+        CancellationToken cancellationToken);
 }

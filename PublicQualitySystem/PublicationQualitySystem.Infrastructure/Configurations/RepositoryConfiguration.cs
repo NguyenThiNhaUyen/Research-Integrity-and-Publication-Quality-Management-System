@@ -10,10 +10,7 @@ public static class RepositoryConfiguration
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
-        services.AddScoped<IResearchGroupMemberRepository, ResearchGroupMemberRepository>();
-        services.AddScoped<IPaperRepository, PaperRepository>();
-        services.AddScoped<IPaperVersionRepository, PaperVersionRepository>();
-        services.AddScoped<IUploadedFileRepository, UploadedFileRepository>();
+
         return services;
     }
 }
