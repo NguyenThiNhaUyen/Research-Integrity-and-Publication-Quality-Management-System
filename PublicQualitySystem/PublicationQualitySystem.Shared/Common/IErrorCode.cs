@@ -1,9 +1,8 @@
-using System.Net;
-
 namespace PublicationQualitySystem.Shared.Exceptions;
 
 public interface IErrorCode
 {
+    int Code { get; }
     string Message { get; }
-    HttpStatusCode StatusCode { get; }
+    int StatusCode { get; }
 }

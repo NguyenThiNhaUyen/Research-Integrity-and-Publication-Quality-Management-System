@@ -147,7 +147,7 @@ Ngay hien tai solution dang la mot ASP.NET Core layered monolith trong 1 project
 |---|---|---|
 | Chua co API versioning | Trung binh | Nen them truoc khi mo rong nhieu module |
 | Swagger thieu annotation chi tiet | Thap | Nen them `ProducesResponseType`, summary, examples |
-| File endpoint da reset | Thap | Workflow moi di qua `POST /api/papers/upload` va Nougat service |
+| `api/s3` chua domain-friendly | Thap | Nen gom duoi `api/files` hoac `api/uploads` |
 | Role assignment route hoi kho doc | Thap | Co the doi ve `/api/users/{userId}/roles/{roleId}` |
 | Validation response chua co `errors[]` | Trung binh | Chua khop Postman standard mong muon |
 
@@ -259,3 +259,4 @@ PublicationQualitySystem.Domain
 PublicationQualitySystem.Infrastructure
 PublicationQualitySystem.Tests
 ```
+
