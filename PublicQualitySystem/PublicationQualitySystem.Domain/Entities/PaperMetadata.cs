@@ -16,6 +16,13 @@ public class PaperMetadata : BaseEntity
     public string? Venue { get; set; }
     public string? ConferenceName { get; set; }
     public int? PublicationYear { get; set; }
+    public string? Volume { get; set; }
+    public string? Issue { get; set; }
+    public string? Pages { get; set; }
+    public string? CorrespondingAuthor { get; set; }
+    public string? MetadataSource { get; set; }
+    public string? DoiSource { get; set; }
+    public string? JournalSource { get; set; }
     public string KeywordsJson { get; set; } = "[]";
     public string AuthorsJson { get; set; } = "[]";
     public string ReferencesJson { get; set; } = "[]";

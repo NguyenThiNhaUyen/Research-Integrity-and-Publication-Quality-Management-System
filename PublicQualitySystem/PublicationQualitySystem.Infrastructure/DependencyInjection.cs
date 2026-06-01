@@ -51,6 +51,15 @@ public static class DependencyInjection
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromMinutes(timeoutMinutes);
         });
+        services.AddHttpClient<ICrossrefService, CrossrefService>((provider, client) =>
+        {
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var baseUrl = configuration["Crossref:BaseUrl"] ?? "https://api.crossref.org";
+            var timeoutSeconds = configuration.GetValue("Crossref:TimeoutSeconds", 15);
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("RIPQMS/1.0 (mailto:admin@example.com)");
+        });
 
         return services;
     }

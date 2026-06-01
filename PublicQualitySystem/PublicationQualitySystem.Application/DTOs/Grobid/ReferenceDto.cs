@@ -7,6 +7,9 @@ public class ReferenceDto
     public string? Journal { get; set; }
     public string? Publisher { get; set; }
     public int? PublicationYear { get; set; }
+    public string? Volume { get; set; }
+    public string? Issue { get; set; }
+    public string? Pages { get; set; }
     public string? RawText { get; set; }
     public string? Doi { get; set; }
 }

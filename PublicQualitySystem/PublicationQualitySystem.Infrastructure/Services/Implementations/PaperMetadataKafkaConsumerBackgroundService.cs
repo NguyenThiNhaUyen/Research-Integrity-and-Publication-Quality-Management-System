@@ -111,6 +111,7 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
         var grobid = scope.ServiceProvider.GetRequiredService<IGrobidService>();
+        var crossref = scope.ServiceProvider.GetRequiredService<ICrossrefService>();
 
         var version = await db.PaperVersions
             .Include(x => x.Paper)
@@ -158,6 +159,31 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                 pdfStream,
                 version.OriginalFileName,
                 cancellationToken);
+            logger.LogInformation(
+                "DOI found. PaperId={PaperId}, PaperVersionId={PaperVersionId}, Doi={Doi}, DoiSource={DoiSource}",
+                version.PaperId,
+                version.Id,
+                extracted.Doi,
+                extracted.DoiSource);
+            logger.LogInformation(
+                "Journal found. PaperId={PaperId}, PaperVersionId={PaperVersionId}, Journal={Journal}, JournalSource={JournalSource}",
+                version.PaperId,
+                version.Id,
+                extracted.Journal,
+                extracted.JournalSource);
+
+            if (!string.IsNullOrWhiteSpace(extracted.Doi))
+            {
+                var crossrefMetadata = await crossref.GetWorkByDoiAsync(extracted.Doi, cancellationToken);
+                extracted = ScholarlyMetadataMerger.Merge(extracted, crossrefMetadata);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Crossref lookup skipped because DOI was not found. PaperId={PaperId}, PaperVersionId={PaperVersionId}",
+                    version.PaperId,
+                    version.Id);
+            }
 
             metadata.Title = extracted.Title;
             metadata.Abstract = extracted.Abstract;
@@ -168,6 +194,13 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.Venue = extracted.Venue;
             metadata.ConferenceName = extracted.ConferenceName;
             metadata.PublicationYear = extracted.PublicationYear;
+            metadata.Volume = extracted.Volume;
+            metadata.Issue = extracted.Issue;
+            metadata.Pages = extracted.Pages;
+            metadata.CorrespondingAuthor = extracted.CorrespondingAuthor;
+            metadata.MetadataSource = extracted.MetadataSource;
+            metadata.DoiSource = extracted.DoiSource;
+            metadata.JournalSource = extracted.JournalSource;
             metadata.KeywordsJson = JsonSerializer.Serialize(extracted.Keywords, JsonOptions);
             metadata.AuthorsJson = JsonSerializer.Serialize(extracted.Authors, JsonOptions);
             metadata.ReferencesJson = JsonSerializer.Serialize(extracted.References, JsonOptions);
@@ -177,6 +210,14 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
+
+            logger.LogInformation(
+                "Metadata saved. PaperId={PaperId}, PaperVersionId={PaperVersionId}, MetadataSource={MetadataSource}, DoiSource={DoiSource}, JournalSource={JournalSource}",
+                version.PaperId,
+                version.Id,
+                metadata.MetadataSource,
+                metadata.DoiSource,
+                metadata.JournalSource);
 
             logger.LogInformation(
                 "GROBID metadata parsed. PaperId={PaperId}, PaperVersionId={PaperVersionId}, Title={Title}, AuthorCount={AuthorCount}, ReferenceCount={ReferenceCount}, HasDoi={HasDoi}, ArxivId={ArxivId}",

@@ -101,6 +101,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.Venue).HasColumnName("venue").HasColumnType("text");
             entity.Property(x => x.ConferenceName).HasColumnName("conference_name").HasColumnType("text");
             entity.Property(x => x.PublicationYear).HasColumnName("publication_year");
+            entity.Property(x => x.Volume).HasColumnName("volume").HasMaxLength(100);
+            entity.Property(x => x.Issue).HasColumnName("issue").HasMaxLength(100);
+            entity.Property(x => x.Pages).HasColumnName("pages").HasMaxLength(100);
+            entity.Property(x => x.CorrespondingAuthor).HasColumnName("corresponding_author").HasMaxLength(500);
+            entity.Property(x => x.MetadataSource).HasColumnName("metadata_source").HasMaxLength(100);
+            entity.Property(x => x.DoiSource).HasColumnName("doi_source").HasMaxLength(100);
+            entity.Property(x => x.JournalSource).HasColumnName("journal_source").HasMaxLength(100);
             entity.Property(x => x.KeywordsJson).HasColumnName("keywords_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.AuthorsJson).HasColumnName("authors_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.ReferencesJson).HasColumnName("references_json").HasColumnType("jsonb").IsRequired();

@@ -23,11 +23,23 @@ public static partial class GrobidTeiParser
         var rawDoi = CleanText(analytic?.Elements(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "DOI")))
             ?? CleanText(biblStruct?.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "DOI")));
         var doi = NormalizeDoi(rawDoi, logger);
+        var doiSource = doi is null ? null : "GROBID";
+        if (doi is null)
+        {
+            var regexDoi = ExtractDoiFromText(allText);
+            doi = NormalizeDoi(regexDoi, logger);
+            doiSource = doi is null ? null : "REGEX";
+        }
+
         var venueInfo = ExtractVenueInfo(fileDesc, monogr, allText);
         var references = tei.Descendants(Tei + "listBibl")
             .Descendants(Tei + "biblStruct")
             .Select(x => ParseReference(x, logger))
             .ToArray();
+        var journal = CleanText(monogr?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "j")))
+            ?? CleanText(fileDesc?.Descendants(Tei + "publicationStmt").Descendants(Tei + "title").FirstOrDefault())
+            ?? CleanText(sourceDesc?.Descendants(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "j")))
+            ?? CleanText(monogr?.Element(Tei + "title"));
 
         return new GrobidMetadataResponse
         {
@@ -37,13 +49,18 @@ public static partial class GrobidTeiParser
             Authors = ParseAuthors(analytic?.Elements(Tei + "author") ?? Enumerable.Empty<XElement>(), logger),
             Abstract = CleanText(tei.Descendants(Tei + "profileDesc").Descendants(Tei + "abstract").FirstOrDefault()),
             Doi = doi,
+            DoiSource = doiSource,
             ArxivId = NormalizeArxivId(CleanText(biblStruct?.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "arXiv")))),
-            Journal = CleanText(monogr?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "j")))
-                ?? CleanText(monogr?.Element(Tei + "title")),
+            Journal = journal,
+            JournalSource = journal is null ? null : "GROBID",
             Publisher = venueInfo.Publisher,
             Venue = venueInfo.Venue,
             ConferenceName = venueInfo.ConferenceName,
             PublicationYear = ParseYear(monogr?.Descendants(Tei + "date").FirstOrDefault()),
+            Volume = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "volume"))),
+            Issue = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "issue"))),
+            Pages = ParsePages(monogr),
+            CorrespondingAuthor = ParseCorrespondingAuthor(analytic),
             Keywords = ParseKeywords(tei),
             References = references
         };
@@ -67,6 +84,9 @@ public static partial class GrobidTeiParser
             Publisher = CleanText(monogr?.Descendants(Tei + "publisher").FirstOrDefault()),
             Doi = NormalizeDoi(CleanText(biblStruct.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "DOI"))), logger),
             PublicationYear = ParseYear(monogr?.Descendants(Tei + "date").FirstOrDefault()),
+            Volume = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "volume"))),
+            Issue = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "issue"))),
+            Pages = ParsePages(monogr),
             RawText = rawText
         };
     }
@@ -243,6 +263,55 @@ public static partial class GrobidTeiParser
         return null;
     }
 
+    private static string? ExtractDoiFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var match = DoiRegex().Match(text);
+        return match.Success ? match.Groups["doi"].Value : null;
+    }
+
+    private static string? ParsePages(XElement? monogr)
+    {
+        var pages = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "page") || AttrEquals(x, "unit", "pp")));
+        if (!string.IsNullOrWhiteSpace(pages))
+        {
+            return pages;
+        }
+
+        var from = (string?)monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "page"))?.Attribute("from");
+        var to = (string?)monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "page"))?.Attribute("to");
+        return !string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to)
+            ? $"{from}-{to}"
+            : NullIfWhiteSpace(from);
+    }
+
+    private static string? ParseCorrespondingAuthor(XElement? analytic)
+    {
+        var author = analytic?.Elements(Tei + "author")
+            .FirstOrDefault(x => AttrEquals(x, "role", "corresp")
+                || AttrEquals(x, "corresp", "yes")
+                || string.Equals((string?)x.Attribute("corresp"), "true", StringComparison.OrdinalIgnoreCase));
+        if (author is null)
+        {
+            return null;
+        }
+
+        var persName = author.Element(Tei + "persName");
+        if (persName is null)
+        {
+            return null;
+        }
+
+        var parsed = ParsePersonAuthor(author, persName);
+        return parsed.Email is null
+            ? parsed.FullName
+            : $"{parsed.FullName} <{parsed.Email}>";
+    }
+
     private static string? NormalizeArxivId(string? rawArxiv)
     {
         if (string.IsNullOrWhiteSpace(rawArxiv))
@@ -317,4 +386,7 @@ public static partial class GrobidTeiParser
 
     [GeneratedRegex(@"(?<=[a-z])\s+(?=[A-Z]{2,}\b)", RegexOptions.CultureInvariant)]
     private static partial Regex AcronymKeywordBoundaryRegex();
+
+    [GeneratedRegex(@"(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?(?<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DoiRegex();
 }

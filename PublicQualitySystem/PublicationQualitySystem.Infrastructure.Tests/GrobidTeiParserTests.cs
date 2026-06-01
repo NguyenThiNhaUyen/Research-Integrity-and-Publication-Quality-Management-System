@@ -111,6 +111,7 @@ public class GrobidTeiParserTests
 
         Assert.Equal("Hammer PDF: An Intelligent PDF Reader for Scientific Papers", metadata.Title);
         Assert.Null(metadata.Doi);
+        Assert.Null(metadata.DoiSource);
         Assert.Equal("2204.02809v2", metadata.ArxivId);
         Assert.Equal(2022, metadata.PublicationYear);
         Assert.Equal("ACM", metadata.Publisher);
@@ -157,5 +158,61 @@ public class GrobidTeiParserTests
         var metadata = GrobidTeiParser.Parse(xml);
 
         Assert.Equal("10.1145/example", metadata.Doi);
+        Assert.Equal("GROBID", metadata.DoiSource);
+    }
+
+    [Fact]
+    public void Parse_FallsBackToBodyTextForDoiAndParsesJournalIssuePages()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <fileDesc>
+                  <sourceDesc>
+                    <biblStruct>
+                      <analytic>
+                        <title level="a">Body DOI Paper</title>
+                        <author role="corresp">
+                          <persName>
+                            <forename type="first">Ada</forename>
+                            <surname>Lovelace</surname>
+                          </persName>
+                          <email>ada@example.org</email>
+                        </author>
+                      </analytic>
+                      <monogr>
+                        <title level="j">Journal of Metadata Systems</title>
+                        <imprint>
+                          <publisher>Metadata Press</publisher>
+                          <biblScope unit="volume">12</biblScope>
+                          <biblScope unit="issue">4</biblScope>
+                          <biblScope unit="page" from="101" to="120"/>
+                          <date when="2025-03-01"/>
+                        </imprint>
+                      </monogr>
+                    </biblStruct>
+                  </sourceDesc>
+                </fileDesc>
+              </teiHeader>
+              <text>
+                <body>
+                  <p>This article is available at doi:10.1000/xyz123.</p>
+                </body>
+              </text>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal("10.1000/xyz123", metadata.Doi);
+        Assert.Equal("REGEX", metadata.DoiSource);
+        Assert.Equal("Journal of Metadata Systems", metadata.Journal);
+        Assert.Equal("GROBID", metadata.JournalSource);
+        Assert.Equal("Metadata Press", metadata.Publisher);
+        Assert.Equal(2025, metadata.PublicationYear);
+        Assert.Equal("12", metadata.Volume);
+        Assert.Equal("4", metadata.Issue);
+        Assert.Equal("101-120", metadata.Pages);
+        Assert.Equal("Ada Lovelace <ada@example.org>", metadata.CorrespondingAuthor);
     }
 }
