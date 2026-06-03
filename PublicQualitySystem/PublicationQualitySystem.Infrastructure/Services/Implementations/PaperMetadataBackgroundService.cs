@@ -52,6 +52,7 @@ public sealed class PaperMetadataBackgroundService(
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
         var grobid = scope.ServiceProvider.GetRequiredService<IGrobidService>();
         var crossref = scope.ServiceProvider.GetRequiredService<ICrossrefService>();
+        var qualityScoring = scope.ServiceProvider.GetRequiredService<IMetadataQualityScoringService>();
 
         var version = await db.PaperVersions
             .Include(x => x.Paper)
@@ -141,6 +142,27 @@ public sealed class PaperMetadataBackgroundService(
             metadata.ExtractedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
+
+            var qualityScore = qualityScoring.Calculate(metadata);
+            logger.LogInformation(
+                "Metadata quality score calculated. PaperId={PaperId}, PaperVersionId={PaperVersionId}, TotalScore={TotalScore}, Grade={Grade}, CanProceed={CanProceed}, MissingFields={MissingFields}, Warnings={Warnings}",
+                version.PaperId,
+                version.Id,
+                qualityScore.TotalScore,
+                qualityScore.Grade,
+                qualityScore.CanProceed,
+                string.Join(", ", qualityScore.MissingFields),
+                string.Join(" | ", qualityScore.Warnings));
+
+            if (!qualityScore.CanProceed)
+            {
+                logger.LogWarning(
+                    "Integrity Screening blocked by metadata quality gate. PaperId={PaperId}, PaperVersionId={PaperVersionId}, TotalScore={TotalScore}, Grade={Grade}",
+                    version.PaperId,
+                    version.Id,
+                    qualityScore.TotalScore,
+                    qualityScore.Grade);
+            }
 
             logger.LogInformation(
                 "GROBID metadata parsed. PaperId={PaperId}, PaperVersionId={PaperVersionId}, Title={Title}, AuthorCount={AuthorCount}, ReferenceCount={ReferenceCount}, HasDoi={HasDoi}, ArxivId={ArxivId}",

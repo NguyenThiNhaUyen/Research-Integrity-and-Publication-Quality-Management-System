@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddScoped<ICognitoUserService, CognitoUserService>();
         services.AddScoped<IFileStorageService, S3FileStorageService>();
         services.AddScoped<IPaperService, PaperService>();
+        services.AddScoped<IMetadataQualityScoringService, MetadataQualityScoringService>();
         services.AddOptions<KafkaOptions>().BindConfiguration("Kafka");
         services.AddHostedService<KafkaTopicInitializerHostedService>();
         services.AddHostedService<KafkaOutboxPublisherBackgroundService>();
