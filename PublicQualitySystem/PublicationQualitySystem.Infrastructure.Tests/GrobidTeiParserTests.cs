@@ -215,4 +215,113 @@ public class GrobidTeiParserTests
         Assert.Equal("101-120", metadata.Pages);
         Assert.Equal("Ada Lovelace <ada@example.org>", metadata.CorrespondingAuthor);
     }
+
+    [Fact]
+    public void Parse_ExtractsKeywordsFromTermElements()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <profileDesc>
+                  <textClass>
+                    <keywords>
+                      <term>Edge computing</term>
+                      <term>Energy efficiency</term>
+                    </keywords>
+                  </textClass>
+                </profileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(
+            ["Edge computing", "Energy efficiency"],
+            metadata.Keywords);
+    }
+
+    [Fact]
+    public void Parse_ExtractsKeywordsFromPlainTextKeywordsNode()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <profileDesc>
+                  <textClass>
+                    <keywords>
+                      Edge computing;
+                      Energy efficiency;
+                      5G;
+                      Wireless networks;
+                      Sustainable communications
+                    </keywords>
+                  </textClass>
+                </profileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(
+            [
+                "Edge computing",
+                "Energy efficiency",
+                "5G",
+                "Wireless networks",
+                "Sustainable communications"
+            ],
+            metadata.Keywords);
+    }
+
+    [Fact]
+    public void Parse_ExtractsKeywordsFromAuthorSchemeKeywords()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <profileDesc>
+                  <keywords scheme="author">
+                    <term>Edge computing</term>
+                    <term>Wireless networks</term>
+                  </keywords>
+                </profileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(
+            ["Edge computing", "Wireless networks"],
+            metadata.Keywords);
+    }
+
+    [Fact]
+    public void Parse_DeduplicatesAndIgnoresEmptyKeywords()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <profileDesc>
+                  <textClass>
+                    <keywords>
+                      Edge computing;; EDGE COMPUTING,
+
+                      Energy efficiency,
+                      energy efficiency;
+                    </keywords>
+                  </textClass>
+                </profileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(
+            ["Edge computing", "Energy efficiency"],
+            metadata.Keywords);
+    }
 }

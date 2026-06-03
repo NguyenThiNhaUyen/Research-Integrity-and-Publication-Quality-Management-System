@@ -155,28 +155,47 @@ public static partial class GrobidTeiParser
     private static IReadOnlyList<string> ParseKeywords(XElement tei)
     {
         var keywords = new List<string>();
-        foreach (var term in tei.Descendants(Tei + "textClass")
-            .Descendants(Tei + "keywords")
-            .Descendants(Tei + "term")
-            .Select(CleanText)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x!))
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var keywordsNode in tei.Descendants(Tei + "keywords"))
         {
-            foreach (var part in term.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            var terms = keywordsNode.Elements(Tei + "term").ToArray();
+            if (terms.Length > 0)
             {
-                foreach (var keywordPart in AcronymKeywordBoundaryRegex().Split(part))
+                foreach (var term in terms.Select(CleanText))
                 {
-                    var cleaned = NormalizeSpaces(keywordPart);
-                    if (!string.IsNullOrWhiteSpace(cleaned)
-                        && !keywords.Contains(cleaned, StringComparer.OrdinalIgnoreCase))
-                    {
-                        keywords.Add(cleaned);
-                    }
+                    AddKeywordCandidates(term, keywords, seen);
                 }
+
+                continue;
             }
+
+            AddKeywordCandidates(keywordsNode.Value, keywords, seen);
         }
 
         return keywords;
+    }
+
+    private static void AddKeywordCandidates(string? rawValue, List<string> keywords, HashSet<string> seen)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return;
+        }
+
+        foreach (var part in rawValue.Split(
+            [';', ',', '\r', '\n'],
+            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            foreach (var keywordPart in AcronymKeywordBoundaryRegex().Split(part))
+            {
+                var cleaned = NormalizeSpaces(keywordPart);
+                if (!string.IsNullOrWhiteSpace(cleaned) && seen.Add(cleaned))
+                {
+                    keywords.Add(cleaned);
+                }
+            }
+        }
     }
 
     private static VenueInfo ExtractVenueInfo(XElement? fileDesc, XElement? monogr, string? allText)
