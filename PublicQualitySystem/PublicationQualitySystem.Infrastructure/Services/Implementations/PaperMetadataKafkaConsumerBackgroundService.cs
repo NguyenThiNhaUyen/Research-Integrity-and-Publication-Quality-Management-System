@@ -213,6 +213,9 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             await db.SaveChangesAsync(cancellationToken);
 
             var qualityScore = qualityScoring.Calculate(metadata);
+            MetadataQualityScoreMapper.Apply(metadata, qualityScore, DateTime.UtcNow);
+            await db.SaveChangesAsync(cancellationToken);
+
             logger.LogInformation(
                 "Metadata quality score calculated. PaperId={PaperId}, PaperVersionId={PaperVersionId}, TotalScore={TotalScore}, Grade={Grade}, CanProceed={CanProceed}, MissingFields={MissingFields}, Warnings={Warnings}",
                 version.PaperId,

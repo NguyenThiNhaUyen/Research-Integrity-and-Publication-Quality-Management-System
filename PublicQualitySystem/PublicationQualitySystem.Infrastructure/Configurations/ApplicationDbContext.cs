@@ -119,6 +119,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasMaxLength(50);
             entity.Property(x => x.ExtractionError).HasColumnName("extraction_error").HasMaxLength(4000);
             entity.Property(x => x.ExtractedAt).HasColumnName("extracted_at");
+            entity.Property(x => x.MetadataQualityTotalScore).HasColumnName("metadata_quality_total_score");
+            entity.Property(x => x.MetadataQualityCoreScore).HasColumnName("metadata_quality_core_score");
+            entity.Property(x => x.MetadataQualityExtendedScore).HasColumnName("metadata_quality_extended_score");
+            entity.Property(x => x.MetadataQualityEnrichmentScore).HasColumnName("metadata_quality_enrichment_score");
+            entity.Property(x => x.MetadataQualityGrade).HasColumnName("metadata_quality_grade").HasMaxLength(50);
+            entity.Property(x => x.MetadataQualityCanProceed).HasColumnName("metadata_quality_can_proceed");
+            entity.Property(x => x.MetadataQualityMissingFieldsJson).HasColumnName("metadata_quality_missing_fields_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityWarningsJson).HasColumnName("metadata_quality_warnings_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityFieldScoresJson).HasColumnName("metadata_quality_field_scores_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityScoredAt).HasColumnName("metadata_quality_scored_at");
             entity.HasIndex(x => x.PaperId).IsUnique();
         });
 

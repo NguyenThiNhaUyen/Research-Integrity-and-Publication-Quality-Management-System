@@ -209,7 +209,8 @@ public class PaperService(
             References = DeserializeJson<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>(),
             ExtractionStatus = metadata.ExtractionStatus,
             ExtractedAt = metadata.ExtractedAt,
-            ExtractionError = metadata.ExtractionError
+            ExtractionError = metadata.ExtractionError,
+            MetadataQuality = MetadataQualityScoreMapper.ToResponse(metadata)
         };
     }
 

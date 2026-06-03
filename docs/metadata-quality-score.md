@@ -4,7 +4,7 @@
 
 The Metadata Quality Score Gate checks whether extracted scholarly metadata is strong enough before a paper proceeds to Integrity Screening.
 
-The score is calculated from the existing `PaperMetadata` record after GROBID/Crossref metadata extraction finishes. The gate does not change public API contracts and does not require a database migration in this version.
+The score is calculated from the existing `PaperMetadata` record after GROBID/Crossref metadata extraction finishes. The result is persisted on `paper_metadata` so the API can show users which metadata fields are missing before Integrity Screening.
 
 ## Scoring Table
 
@@ -87,33 +87,39 @@ For journal articles, `conferenceName` and `venue` are not required. For confere
 
 ## Example Output
 
+The existing `GET /api/papers/{paperId}/metadata` endpoint includes the quality result in the `metadataQuality` field:
+
 ```json
 {
-  "totalScore": 95,
-  "coreScore": 70,
-  "extendedScore": 15,
-  "enrichmentScore": 10,
-  "grade": "EXCELLENT",
-  "canProceed": true,
-  "missingFields": ["funding"],
-  "warnings": [
-    "Funding metadata is missing. Funding is important but does not block the pipeline by itself."
-  ],
-  "fieldScores": {
-    "title": 10,
-    "authors": 10,
-    "doi": 15,
-    "abstract": 10,
-    "sourceName": 10,
-    "publicationDateOrYear": 5,
-    "references": 10,
-    "affiliations": 5,
-    "keywords": 5,
-    "publisher": 5,
-    "funding": 0,
-    "orcid": 4,
-    "authorEmail": 3,
-    "correspondingAuthor": 3
+  "paperId": 1,
+  "title": "A Complete Metadata Paper",
+  "metadataQuality": {
+    "totalScore": 95,
+    "coreScore": 70,
+    "extendedScore": 15,
+    "enrichmentScore": 10,
+    "grade": "EXCELLENT",
+    "canProceed": true,
+    "missingFields": ["funding"],
+    "warnings": [
+      "Funding metadata is missing. Funding is important but does not block the pipeline by itself."
+    ],
+    "fieldScores": {
+      "title": 10,
+      "authors": 10,
+      "doi": 15,
+      "abstract": 10,
+      "sourceName": 10,
+      "publicationDateOrYear": 5,
+      "references": 10,
+      "affiliations": 5,
+      "keywords": 5,
+      "publisher": 5,
+      "funding": 0,
+      "orcid": 4,
+      "authorEmail": 3,
+      "correspondingAuthor": 3
+    }
   }
 }
 ```
@@ -122,7 +128,7 @@ For journal articles, `conferenceName` and `venue` are not required. For confere
 
 After metadata extraction completes and `PaperMetadata` is saved, the background worker calculates the quality score.
 
-The worker logs:
+The worker persists the score fields on `paper_metadata`, then logs:
 
 - Total score
 - Grade
