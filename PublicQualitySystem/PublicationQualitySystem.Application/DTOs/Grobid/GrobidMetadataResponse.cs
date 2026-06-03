@@ -20,6 +20,7 @@ public class GrobidMetadataResponse
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> FundingOrganizations { get; set; } = Array.Empty<string>();
     public IReadOnlyList<ReferenceDto> References { get; set; } = Array.Empty<ReferenceDto>();
     public string RawGrobidXml { get; set; } = string.Empty;
 }

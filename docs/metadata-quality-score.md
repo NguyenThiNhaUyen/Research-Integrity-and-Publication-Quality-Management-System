@@ -20,7 +20,7 @@ The score is calculated from the existing `PaperMetadata` record after GROBID/Cr
 | Extended | Affiliations | 5 | At least one author has `affiliation` |
 | Extended | Keywords | 5 | Keywords list has at least one item |
 | Extended | Publisher | 5 | `Publisher` is not empty |
-| Extended | Funding | 5 | Funding metadata exists |
+| Extended | Funding | 5 | Funding organizations list has at least one item |
 | Enrichment | ORCID | 4 | At least one author JSON object has `orcid` |
 | Enrichment | Author email | 3 | At least one author has `email` |
 | Enrichment | Corresponding author | 3 | `CorrespondingAuthor` is not empty |
@@ -46,7 +46,8 @@ Maximum score: 100.
 - References are valid when the references JSON array contains at least one item.
 - ORCID is optional and only affects enrichment score.
 - Author email is optional and only affects enrichment score.
-- Funding is important but does not block the pipeline by itself.
+- Funding is valid when `fundingOrganizations` contains at least one non-empty organization.
+- GROBID funding is parsed from `teiHeader/fileDesc/titleStmt/funder/orgName`, preferring `orgName type="full"`.
 
 ## JOURNAL vs CONFERENCE Notes
 
@@ -66,6 +67,7 @@ For journal articles, `conferenceName` and `venue` are not required. For confere
   "doi": "10.1000/xyz123",
   "journal": "Journal of Metadata Quality",
   "publisher": "RIPQMS Press",
+  "fundingOrganizations": ["European Social Fund"],
   "publicationYear": 2026,
   "correspondingAuthor": "Ada Lovelace <ada@example.org>",
   "authors": [
@@ -94,16 +96,14 @@ The existing `GET /api/papers/{paperId}/metadata` endpoint includes the quality 
   "paperId": 1,
   "title": "A Complete Metadata Paper",
   "metadataQuality": {
-    "totalScore": 95,
+    "totalScore": 100,
     "coreScore": 70,
-    "extendedScore": 15,
+    "extendedScore": 20,
     "enrichmentScore": 10,
     "grade": "EXCELLENT",
     "canProceed": true,
-    "missingFields": ["funding"],
-    "warnings": [
-      "Funding metadata is missing. Funding is important but does not block the pipeline by itself."
-    ],
+    "missingFields": [],
+    "warnings": [],
     "fieldScores": {
       "title": 10,
       "authors": 10,
@@ -115,7 +115,7 @@ The existing `GET /api/papers/{paperId}/metadata` endpoint includes the quality 
       "affiliations": 5,
       "keywords": 5,
       "publisher": 5,
-      "funding": 0,
+      "funding": 5,
       "orcid": 4,
       "authorEmail": 3,
       "correspondingAuthor": 3

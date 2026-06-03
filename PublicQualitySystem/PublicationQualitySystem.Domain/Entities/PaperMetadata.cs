@@ -24,6 +24,7 @@ public class PaperMetadata : BaseEntity
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
     public string KeywordsJson { get; set; } = "[]";
+    public string FundingOrganizationsJson { get; set; } = "[]";
     public string AuthorsJson { get; set; } = "[]";
     public string ReferencesJson { get; set; } = "[]";
     public string? RawGrobidXml { get; set; }

@@ -17,6 +17,7 @@ public sealed partial class MetadataQualityScoringService : IMetadataQualityScor
         var authors = Deserialize<IReadOnlyList<AuthorDto>>(metadata.AuthorsJson) ?? Array.Empty<AuthorDto>();
         var keywords = Deserialize<IReadOnlyList<string>>(metadata.KeywordsJson) ?? Array.Empty<string>();
         var references = Deserialize<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>();
+        var fundingOrganizations = GetFundingOrganizations(metadata);
 
         var response = new MetadataQualityScoreResponse();
 
@@ -31,8 +32,12 @@ public sealed partial class MetadataQualityScoringService : IMetadataQualityScor
         AddFieldScore(response, "affiliations", 5, authors.Any(x => HasValue(x.Affiliation)));
         AddFieldScore(response, "keywords", 5, keywords.Any(HasValue));
         AddFieldScore(response, "publisher", 5, HasValue(metadata.Publisher));
-        AddFieldScore(response, "funding", 5, false);
-        response.Warnings.Add("Funding metadata is missing. Funding is important but does not block the pipeline by itself.");
+        var hasFunding = fundingOrganizations.Count > 0;
+        AddFieldScore(response, "funding", 5, hasFunding);
+        if (!hasFunding)
+        {
+            response.Warnings.Add("Funding metadata is missing. Funding is important but does not block the pipeline by itself.");
+        }
 
         AddFieldScore(response, "orcid", 4, HasOrcid(metadata.AuthorsJson));
         AddFieldScore(response, "authorEmail", 3, authors.Any(x => HasValue(x.Email)));
@@ -63,6 +68,17 @@ public sealed partial class MetadataQualityScoringService : IMetadataQualityScor
         }
 
         return response;
+    }
+
+    public static IReadOnlyList<string> GetFundingOrganizations(PaperMetadata metadata)
+    {
+        var organizations = Deserialize<IReadOnlyList<string>>(metadata.FundingOrganizationsJson) ?? Array.Empty<string>();
+        return organizations
+            .Select(x => x?.Trim())
+            .Where(IsMeaningfulFundingOrganization)
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static void AddSourceNameScore(MetadataQualityScoreResponse response, PaperMetadata metadata)
@@ -165,6 +181,9 @@ public sealed partial class MetadataQualityScoringService : IMetadataQualityScor
     }
 
     private static bool HasValue(string? value) => !string.IsNullOrWhiteSpace(value);
+
+    private static bool IsMeaningfulFundingOrganization(string? value) =>
+        HasValue(value) && !value!.Trim().Equals("unknown", StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DoiRegex();

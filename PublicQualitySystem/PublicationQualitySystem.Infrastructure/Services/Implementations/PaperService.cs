@@ -206,6 +206,7 @@ public class PaperService(
             DoiSource = metadata.DoiSource,
             JournalSource = metadata.JournalSource,
             Keywords = DeserializeJson<IReadOnlyList<string>>(metadata.KeywordsJson) ?? Array.Empty<string>(),
+            FundingOrganizations = DeserializeJson<IReadOnlyList<string>>(metadata.FundingOrganizationsJson) ?? Array.Empty<string>(),
             References = DeserializeJson<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>(),
             ExtractionStatus = metadata.ExtractionStatus,
             ExtractedAt = metadata.ExtractedAt,

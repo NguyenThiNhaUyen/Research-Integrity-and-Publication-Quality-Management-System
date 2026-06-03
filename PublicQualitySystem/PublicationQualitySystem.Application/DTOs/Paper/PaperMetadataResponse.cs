@@ -25,6 +25,7 @@ public class PaperMetadataResponse
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> FundingOrganizations { get; set; } = Array.Empty<string>();
     public IReadOnlyList<ReferenceDto> References { get; set; } = Array.Empty<ReferenceDto>();
     public MetadataExtractionStatus ExtractionStatus { get; set; }
     public DateTime? ExtractedAt { get; set; }

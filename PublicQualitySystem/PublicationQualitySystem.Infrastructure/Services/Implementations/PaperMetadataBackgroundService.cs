@@ -134,6 +134,7 @@ public sealed class PaperMetadataBackgroundService(
             metadata.DoiSource = extracted.DoiSource;
             metadata.JournalSource = extracted.JournalSource;
             metadata.KeywordsJson = JsonSerializer.Serialize(extracted.Keywords, JsonOptions);
+            metadata.FundingOrganizationsJson = JsonSerializer.Serialize(extracted.FundingOrganizations, JsonOptions);
             metadata.AuthorsJson = JsonSerializer.Serialize(extracted.Authors, JsonOptions);
             metadata.ReferencesJson = JsonSerializer.Serialize(extracted.References, JsonOptions);
             metadata.RawGrobidXml = extracted.RawGrobidXml;

@@ -324,4 +324,93 @@ public class GrobidTeiParserTests
             ["Edge computing", "Energy efficiency"],
             metadata.Keywords);
     }
+
+    [Fact]
+    public void Parse_ExtractsLessOnFundingAndMultipleAuthorAffiliations()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <fileDesc>
+                  <titleStmt>
+                    <title>LESS-ON</title>
+                    <funder>
+                      <orgName type="full">European Social Fund</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">EU NextGenerationEU/PRTR, MCIN</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">EU's H2020</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">EU, ERDF</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">Universidad de Castilla-La Mancha</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">AEI</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">UCLM</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">unknown</orgName>
+                    </funder>
+                    <funder>
+                      <orgName type="full">AEI</orgName>
+                    </funder>
+                  </titleStmt>
+                  <sourceDesc>
+                    <biblStruct>
+                      <analytic>
+                        <title level="a">LESS-ON</title>
+                        <author>
+                          <persName>
+                            <forename type="first">Maria</forename>
+                            <surname>Garcia</surname>
+                          </persName>
+                          <affiliation>
+                            <orgName type="department">Department of Computer Science</orgName>
+                            <orgName type="institution">Universidad de Castilla-La Mancha</orgName>
+                            <address>
+                              <settlement>Albacete</settlement>
+                              <country>Spain</country>
+                            </address>
+                          </affiliation>
+                          <affiliation>
+                            <orgName type="laboratory">Smart Networks Lab</orgName>
+                            <address>
+                              <settlement>Toledo</settlement>
+                              <country>Spain</country>
+                            </address>
+                          </affiliation>
+                        </author>
+                      </analytic>
+                    </biblStruct>
+                  </sourceDesc>
+                </fileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(
+            [
+                "European Social Fund",
+                "EU NextGenerationEU/PRTR, MCIN",
+                "EU's H2020",
+                "EU, ERDF",
+                "Universidad de Castilla-La Mancha",
+                "AEI",
+                "UCLM"
+            ],
+            metadata.FundingOrganizations);
+        Assert.Single(metadata.Authors);
+        Assert.Equal(
+            "Department of Computer Science, Universidad de Castilla-La Mancha, Albacete, Spain; Smart Networks Lab, Toledo, Spain",
+            metadata.Authors[0].Affiliation);
+    }
 }

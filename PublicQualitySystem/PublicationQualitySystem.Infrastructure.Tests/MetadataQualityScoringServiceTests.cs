@@ -110,6 +110,21 @@ public class MetadataQualityScoringServiceTests
         Assert.Contains(score.Warnings, warning => warning.Contains("Human review", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Calculate_WithFundingAndAffiliationsButNoOrcid_OnlyMarksOrcidMissing()
+    {
+        var metadata = CreateFullJournalMetadata();
+        metadata.AuthorsJson = SerializeAuthors(includeOrcid: false, includeEmail: true, includeAffiliation: true);
+
+        var score = _service.Calculate(metadata);
+
+        Assert.Equal(["orcid"], score.MissingFields);
+        Assert.DoesNotContain("funding", score.MissingFields);
+        Assert.DoesNotContain("affiliations", score.MissingFields);
+        Assert.DoesNotContain(score.Warnings, warning => warning.Contains("Funding metadata is missing", StringComparison.OrdinalIgnoreCase));
+        Assert.True(score.CanProceed);
+    }
+
     private static PaperMetadata CreateFullJournalMetadata() => new()
     {
         PaperId = 1,
@@ -122,6 +137,7 @@ public class MetadataQualityScoringServiceTests
         CorrespondingAuthor = "Ada Lovelace <ada@example.org>",
         AuthorsJson = SerializeAuthors(includeOrcid: true, includeEmail: true, includeAffiliation: true),
         KeywordsJson = JsonSerializer.Serialize(new[] { "metadata quality", "GROBID" }, JsonOptions),
+        FundingOrganizationsJson = JsonSerializer.Serialize(new[] { "European Social Fund" }, JsonOptions),
         ReferencesJson = JsonSerializer.Serialize(new[]
         {
             new ReferenceDto

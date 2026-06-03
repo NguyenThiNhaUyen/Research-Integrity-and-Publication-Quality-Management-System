@@ -109,6 +109,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.DoiSource).HasColumnName("doi_source").HasMaxLength(100);
             entity.Property(x => x.JournalSource).HasColumnName("journal_source").HasMaxLength(100);
             entity.Property(x => x.KeywordsJson).HasColumnName("keywords_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.FundingOrganizationsJson)
+                .HasColumnName("funding_organizations_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .IsRequired();
             entity.Property(x => x.AuthorsJson).HasColumnName("authors_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.ReferencesJson).HasColumnName("references_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.RawGrobidXml).HasColumnName("raw_grobid_xml").HasColumnType("text");
