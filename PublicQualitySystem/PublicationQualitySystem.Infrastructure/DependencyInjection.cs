@@ -30,11 +30,17 @@ public static class DependencyInjection
         services.AddScoped<ICognitoUserService, CognitoUserService>();
         services.AddScoped<IFileStorageService, S3FileStorageService>();
         services.AddScoped<IPaperService, PaperService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IPaperProcessingTrackerService, PaperProcessingTrackerService>();
+        services.AddScoped<IMetadataQualityScoringService, MetadataQualityScoringService>();
         services.AddOptions<KafkaOptions>().BindConfiguration("Kafka");
+        services.AddOptions<OpenAlexOptions>().BindConfiguration("OpenAlex");
         services.AddHostedService<KafkaTopicInitializerHostedService>();
         services.AddHostedService<KafkaOutboxPublisherBackgroundService>();
         services.AddHostedService<PaperOcrKafkaConsumerBackgroundService>();
         services.AddHostedService<PaperMetadataKafkaConsumerBackgroundService>();
+        services.AddHostedService<OpenAlexGateKafkaConsumerBackgroundService>();
+        services.AddHostedService<OpenAlexSimilarityKafkaConsumerBackgroundService>();
         services.AddHttpClient<INougatService, NougatService>((provider, client) =>
         {
             var configuration = provider.GetRequiredService<IConfiguration>();
@@ -56,6 +62,15 @@ public static class DependencyInjection
             var configuration = provider.GetRequiredService<IConfiguration>();
             var baseUrl = configuration["Crossref:BaseUrl"] ?? "https://api.crossref.org";
             var timeoutSeconds = configuration.GetValue("Crossref:TimeoutSeconds", 15);
+            client.BaseAddress = new Uri(baseUrl);
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("RIPQMS/1.0 (mailto:admin@example.com)");
+        });
+        services.AddHttpClient<IOpenAlexService, OpenAlexService>((provider, client) =>
+        {
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            var baseUrl = configuration["OpenAlex:BaseUrl"] ?? "https://api.openalex.org";
+            var timeoutSeconds = configuration.GetValue("OpenAlex:TimeoutSeconds", 20);
             client.BaseAddress = new Uri(baseUrl);
             client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
             client.DefaultRequestHeaders.UserAgent.ParseAdd("RIPQMS/1.0 (mailto:admin@example.com)");

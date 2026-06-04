@@ -1,4 +1,5 @@
 using PublicationQualitySystem.Application.DTOs.Grobid;
+using PublicationQualitySystem.Application.DTOs.Metadata;
 using PublicationQualitySystem.Domain.Enums;
 
 namespace PublicationQualitySystem.Application.DTOs.Paper;
@@ -24,8 +25,10 @@ public class PaperMetadataResponse
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> FundingOrganizations { get; set; } = Array.Empty<string>();
     public IReadOnlyList<ReferenceDto> References { get; set; } = Array.Empty<ReferenceDto>();
     public MetadataExtractionStatus ExtractionStatus { get; set; }
     public DateTime? ExtractedAt { get; set; }
     public string? ExtractionError { get; set; }
+    public MetadataQualityScoreResponse? MetadataQuality { get; set; }
 }

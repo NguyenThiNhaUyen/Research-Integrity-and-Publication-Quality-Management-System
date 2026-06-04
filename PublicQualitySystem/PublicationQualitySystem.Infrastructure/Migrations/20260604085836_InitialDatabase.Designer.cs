@@ -12,8 +12,8 @@ using PublicationQualitySystem.Infrastructure.Configurations;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260601041513_AddScholarlyMetadataFields")]
-    partial class AddScholarlyMetadataFields
+    [Migration("20260604085836_InitialDatabase")]
+    partial class InitialDatabase
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,115 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("action");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("deleted");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("Message")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("message");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_json");
+
+                    b.Property<long?>("PaperId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_id");
+
+                    b.Property<long?>("PaperVersionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_version_id");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Step")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("step");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("updated_by");
+
+                    b.Property<long?>("UploadedFileId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("uploaded_file_id");
+
+                    b.Property<string>("UserId")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("PaperVersionId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Step");
+
+                    b.HasIndex("UploadedFileId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("audit_logs", (string)null);
+                });
 
             modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.OutboxMessage", b =>
                 {
@@ -199,6 +308,13 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("extraction_status");
 
+                    b.Property<string>("FundingOrganizationsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("funding_organizations_json")
+                        .HasDefaultValueSql("'[]'::jsonb");
+
                     b.Property<string>("Issue")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -218,6 +334,47 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("keywords_json");
+
+                    b.Property<bool?>("MetadataQualityCanProceed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("metadata_quality_can_proceed");
+
+                    b.Property<int?>("MetadataQualityCoreScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("metadata_quality_core_score");
+
+                    b.Property<int?>("MetadataQualityEnrichmentScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("metadata_quality_enrichment_score");
+
+                    b.Property<int?>("MetadataQualityExtendedScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("metadata_quality_extended_score");
+
+                    b.Property<string>("MetadataQualityFieldScoresJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_quality_field_scores_json");
+
+                    b.Property<string>("MetadataQualityGrade")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("metadata_quality_grade");
+
+                    b.Property<string>("MetadataQualityMissingFieldsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_quality_missing_fields_json");
+
+                    b.Property<DateTime?>("MetadataQualityScoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("metadata_quality_scored_at");
+
+                    b.Property<int?>("MetadataQualityTotalScore")
+                        .HasColumnType("integer")
+                        .HasColumnName("metadata_quality_total_score");
+
+                    b.Property<string>("MetadataQualityWarningsJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("metadata_quality_warnings_json");
 
                     b.Property<string>("MetadataSource")
                         .HasMaxLength(100)
@@ -277,6 +434,315 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("paper_metadata", (string)null);
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("EventId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("event_type");
+
+                    b.Property<long>("PaperId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_id");
+
+                    b.Property<long>("PaperVersionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_version_id");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("stage");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("TrackerId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tracker_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("EventId");
+
+                    b.HasIndex("EventType");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("PaperVersionId");
+
+                    b.HasIndex("Stage");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TrackerId");
+
+                    b.ToTable("paper_processing_events", (string)null);
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CurrentStage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("UPLOADED")
+                        .HasColumnName("current_stage");
+
+                    b.Property<string>("CurrentStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("current_status");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTime>("LastUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_updated_at");
+
+                    b.Property<string>("OverallStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("overall_status");
+
+                    b.Property<long>("PaperId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_id");
+
+                    b.Property<long>("PaperVersionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_version_id");
+
+                    b.Property<int>("ProgressPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("progress_percent");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("retry_count");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CorrelationId");
+
+                    b.HasIndex("CurrentStatus");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("PaperVersionId")
+                        .IsUnique();
+
+                    b.ToTable("paper_processing_trackers", (string)null);
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperSimilarityCheck", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<double?>("AbstractSimilarity")
+                        .HasColumnType("double precision")
+                        .HasColumnName("abstract_similarity");
+
+                    b.Property<double?>("AuthorSimilarity")
+                        .HasColumnType("double precision")
+                        .HasColumnName("author_similarity");
+
+                    b.Property<DateTime?>("CheckedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("checked_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("error_message");
+
+                    b.Property<string>("MatchedDoi")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("matched_doi");
+
+                    b.Property<string>("MatchedOpenAlexId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("matched_openalex_id");
+
+                    b.Property<string>("MatchedTitle")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("matched_title");
+
+                    b.Property<double?>("OverallScore")
+                        .HasColumnType("double precision")
+                        .HasColumnName("overall_score");
+
+                    b.Property<long>("PaperId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_id");
+
+                    b.Property<long>("PaperMetadataId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("paper_metadata_id");
+
+                    b.Property<string>("RawJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("raw_json");
+
+                    b.Property<double?>("ReferenceSimilarity")
+                        .HasColumnType("double precision")
+                        .HasColumnName("reference_similarity");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("risk_level");
+
+                    b.Property<string>("SkipReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("skip_reason");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<double?>("TitleSimilarity")
+                        .HasColumnType("double precision")
+                        .HasColumnName("title_similarity");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CheckedAt");
+
+                    b.HasIndex("PaperId");
+
+                    b.HasIndex("PaperMetadataId");
+
+                    b.HasIndex("RiskLevel");
+
+                    b.HasIndex("Source");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("Source", "PaperMetadataId")
+                        .IsUnique();
+
+                    b.ToTable("paper_similarity_checks", (string)null);
                 });
 
             modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperVersion", b =>
@@ -512,6 +978,71 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     b.Navigation("Paper");
                 });
 
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingEvent", b =>
+                {
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.Paper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.PaperVersion", "PaperVersion")
+                        .WithMany()
+                        .HasForeignKey("PaperVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", "Tracker")
+                        .WithMany("Events")
+                        .HasForeignKey("TrackerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+
+                    b.Navigation("PaperVersion");
+
+                    b.Navigation("Tracker");
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", b =>
+                {
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.Paper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.PaperVersion", "PaperVersion")
+                        .WithMany()
+                        .HasForeignKey("PaperVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+
+                    b.Navigation("PaperVersion");
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperSimilarityCheck", b =>
+                {
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.Paper", "Paper")
+                        .WithMany()
+                        .HasForeignKey("PaperId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PublicationQualitySystem.Domain.Entities.PaperMetadata", "PaperMetadata")
+                        .WithMany()
+                        .HasForeignKey("PaperMetadataId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Paper");
+
+                    b.Navigation("PaperMetadata");
+                });
+
             modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperVersion", b =>
                 {
                     b.HasOne("PublicationQualitySystem.Domain.Entities.Paper", "Paper")
@@ -558,6 +1089,11 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     b.Navigation("Metadata");
 
                     b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", b =>
+                {
+                    b.Navigation("Events");
                 });
 #pragma warning restore 612, 618
         }

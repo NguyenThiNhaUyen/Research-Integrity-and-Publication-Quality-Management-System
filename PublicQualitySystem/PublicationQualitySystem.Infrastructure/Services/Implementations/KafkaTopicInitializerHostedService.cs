@@ -12,7 +12,13 @@ public sealed class KafkaTopicInitializerHostedService(
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var topic = options.Value.PaperUploadedTopic;
+        var topics = new[]
+        {
+            options.Value.PaperUploadedTopic,
+            options.Value.MetadataQualityScoredTopic,
+            options.Value.OpenAlexSimilarityRequestedTopic,
+            options.Value.OpenAlexSimilaritySkippedTopic
+        }.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
         using var admin = new AdminClientBuilder(new AdminClientConfig
         {
@@ -22,27 +28,25 @@ public sealed class KafkaTopicInitializerHostedService(
         try
         {
             await admin.CreateTopicsAsync(
-            [
-                new TopicSpecification
+                topics.Select(topic => new TopicSpecification
                 {
                     Name = topic,
                     NumPartitions = 1,
                     ReplicationFactor = 1
-                }
-            ]);
+                }));
 
-            logger.LogInformation("Kafka topic created. Topic={Topic}", topic);
+            logger.LogInformation("Kafka topics created. Topics={Topics}", string.Join(", ", topics));
         }
         catch (CreateTopicsException ex) when (ex.Results.Any(x => x.Error.Code == ErrorCode.TopicAlreadyExists))
         {
-            logger.LogInformation("Kafka topic already exists. Topic={Topic}", topic);
+            logger.LogInformation("One or more Kafka topics already exist. Topics={Topics}", string.Join(", ", topics));
         }
         catch (Exception ex)
         {
             logger.LogWarning(
                 ex,
-                "Kafka topic initialization failed. Topic={Topic}. Outbox publisher and consumers will retry when Kafka is ready.",
-                topic);
+                "Kafka topic initialization failed. Topics={Topics}. Outbox publisher and consumers will retry when Kafka is ready.",
+                string.Join(", ", topics));
         }
     }
 

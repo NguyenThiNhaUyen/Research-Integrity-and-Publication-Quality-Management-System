@@ -24,10 +24,21 @@ public class PaperMetadata : BaseEntity
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
     public string KeywordsJson { get; set; } = "[]";
+    public string FundingOrganizationsJson { get; set; } = "[]";
     public string AuthorsJson { get; set; } = "[]";
     public string ReferencesJson { get; set; } = "[]";
     public string? RawGrobidXml { get; set; }
     public MetadataExtractionStatus ExtractionStatus { get; set; } = MetadataExtractionStatus.Pending;
     public string? ExtractionError { get; set; }
     public DateTime? ExtractedAt { get; set; }
+    public int? MetadataQualityTotalScore { get; set; }
+    public int? MetadataQualityCoreScore { get; set; }
+    public int? MetadataQualityExtendedScore { get; set; }
+    public int? MetadataQualityEnrichmentScore { get; set; }
+    public string? MetadataQualityGrade { get; set; }
+    public bool? MetadataQualityCanProceed { get; set; }
+    public string? MetadataQualityMissingFieldsJson { get; set; }
+    public string? MetadataQualityWarningsJson { get; set; }
+    public string? MetadataQualityFieldScoresJson { get; set; }
+    public DateTime? MetadataQualityScoredAt { get; set; }
 }

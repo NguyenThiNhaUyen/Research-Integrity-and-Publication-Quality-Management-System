@@ -14,7 +14,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Paper> Papers => Set<Paper>();
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
     public DbSet<PaperMetadata> PaperMetadata => Set<PaperMetadata>();
+    public DbSet<PaperSimilarityCheck> PaperSimilarityChecks => Set<PaperSimilarityCheck>();
+    public DbSet<PaperProcessingTracker> PaperProcessingTrackers => Set<PaperProcessingTracker>();
+    public DbSet<PaperProcessingEvent> PaperProcessingEvents => Set<PaperProcessingEvent>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -109,6 +113,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.DoiSource).HasColumnName("doi_source").HasMaxLength(100);
             entity.Property(x => x.JournalSource).HasColumnName("journal_source").HasMaxLength(100);
             entity.Property(x => x.KeywordsJson).HasColumnName("keywords_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.FundingOrganizationsJson)
+                .HasColumnName("funding_organizations_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValueSql("'[]'::jsonb")
+                .IsRequired();
             entity.Property(x => x.AuthorsJson).HasColumnName("authors_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.ReferencesJson).HasColumnName("references_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.RawGrobidXml).HasColumnName("raw_grobid_xml").HasColumnType("text");
@@ -119,7 +128,113 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasMaxLength(50);
             entity.Property(x => x.ExtractionError).HasColumnName("extraction_error").HasMaxLength(4000);
             entity.Property(x => x.ExtractedAt).HasColumnName("extracted_at");
+            entity.Property(x => x.MetadataQualityTotalScore).HasColumnName("metadata_quality_total_score");
+            entity.Property(x => x.MetadataQualityCoreScore).HasColumnName("metadata_quality_core_score");
+            entity.Property(x => x.MetadataQualityExtendedScore).HasColumnName("metadata_quality_extended_score");
+            entity.Property(x => x.MetadataQualityEnrichmentScore).HasColumnName("metadata_quality_enrichment_score");
+            entity.Property(x => x.MetadataQualityGrade).HasColumnName("metadata_quality_grade").HasMaxLength(50);
+            entity.Property(x => x.MetadataQualityCanProceed).HasColumnName("metadata_quality_can_proceed");
+            entity.Property(x => x.MetadataQualityMissingFieldsJson).HasColumnName("metadata_quality_missing_fields_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityWarningsJson).HasColumnName("metadata_quality_warnings_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityFieldScoresJson).HasColumnName("metadata_quality_field_scores_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataQualityScoredAt).HasColumnName("metadata_quality_scored_at");
             entity.HasIndex(x => x.PaperId).IsUnique();
+        });
+
+        modelBuilder.Entity<PaperSimilarityCheck>(entity =>
+        {
+            entity.ToTable("paper_similarity_checks");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperMetadataId).HasColumnName("paper_metadata_id");
+            entity.Property(x => x.Source).HasColumnName("source").IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.MatchedOpenAlexId).HasColumnName("matched_openalex_id").HasMaxLength(500);
+            entity.Property(x => x.MatchedDoi).HasColumnName("matched_doi").HasMaxLength(255);
+            entity.Property(x => x.MatchedTitle).HasColumnName("matched_title").HasMaxLength(1000);
+            entity.Property(x => x.TitleSimilarity).HasColumnName("title_similarity");
+            entity.Property(x => x.AuthorSimilarity).HasColumnName("author_similarity");
+            entity.Property(x => x.AbstractSimilarity).HasColumnName("abstract_similarity");
+            entity.Property(x => x.ReferenceSimilarity).HasColumnName("reference_similarity");
+            entity.Property(x => x.OverallScore).HasColumnName("overall_score");
+            entity.Property(x => x.RiskLevel)
+                .HasColumnName("risk_level")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.SkipReason).HasColumnName("skip_reason").HasMaxLength(1000);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(x => x.RawJson).HasColumnName("raw_json").HasColumnType("jsonb");
+            entity.Property(x => x.CheckedAt).HasColumnName("checked_at");
+            entity.HasOne(x => x.Paper)
+                .WithMany()
+                .HasForeignKey(x => x.PaperId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperMetadata)
+                .WithMany()
+                .HasForeignKey(x => x.PaperMetadataId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperMetadataId);
+            entity.HasIndex(x => x.Source);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.RiskLevel);
+            entity.HasIndex(x => x.CheckedAt);
+            entity.HasIndex(x => new { x.Source, x.PaperMetadataId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PaperProcessingTracker>(entity =>
+        {
+            entity.ToTable("paper_processing_trackers");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(x => x.CurrentStage).HasColumnName("current_stage").HasConversion<string>().IsRequired().HasDefaultValue(ProcessingStage.UPLOADED).HasMaxLength(100);
+            entity.Property(x => x.CurrentStatus).HasColumnName("current_status").HasConversion<string>().IsRequired().HasDefaultValue(ProcessingStatus.PENDING).HasMaxLength(50);
+            entity.Property(x => x.OverallStatus).HasColumnName("overall_status").HasConversion<string>().IsRequired().HasDefaultValue(ProcessingStatus.PENDING).HasMaxLength(50);
+            entity.Property(x => x.ProgressPercent).HasColumnName("progress_percent");
+            entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(1000);
+            entity.Property(x => x.RetryCount).HasColumnName("retry_count");
+            entity.Property(x => x.StartedAt).HasColumnName("started_at");
+            entity.Property(x => x.LastUpdatedAt).HasColumnName("last_updated_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+
+            entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperVersionId).IsUnique();
+            entity.HasIndex(x => x.CorrelationId);
+            entity.HasIndex(x => x.CurrentStatus);
+        });
+
+        modelBuilder.Entity<PaperProcessingEvent>(entity =>
+        {
+            entity.ToTable("paper_processing_events");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.TrackerId).HasColumnName("tracker_id");
+            entity.Property(x => x.EventId).HasColumnName("event_id").IsRequired().HasMaxLength(100);
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").IsRequired().HasMaxLength(100);
+            entity.Property(x => x.EventType).HasColumnName("event_type").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Stage).HasColumnName("stage").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.PayloadJson).HasColumnName("payload_json").HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Tracker).WithMany(x => x.Events).HasForeignKey(x => x.TrackerId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperVersionId);
+            entity.HasIndex(x => x.TrackerId);
+            entity.HasIndex(x => x.EventId).IsUnique().HasDatabaseName("IX_PaperProcessingEvents_EventId");
+            entity.HasIndex(x => x.CorrelationId);
+            entity.HasIndex(x => x.EventType);
+            entity.HasIndex(x => x.Stage);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.CreatedAt);
         });
 
         modelBuilder.Entity<OutboxMessage>(entity =>
@@ -138,6 +253,46 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(4000);
             entity.Property(x => x.PublishedAt).HasColumnName("published_at");
             entity.HasIndex(x => new { x.Status, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.UploadedFileId).HasColumnName("uploaded_file_id");
+            entity.Property(x => x.UserId).HasColumnName("user_id").HasMaxLength(255);
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(x => x.Action).HasColumnName("action").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Step)
+                .HasColumnName("step")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.Message).HasColumnName("message").HasMaxLength(1000);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(x => x.MetadataJson).HasColumnName("metadata_json").HasColumnType("jsonb");
+            entity.Property(x => x.StartedAt).HasColumnName("started_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(x => x.Deleted).HasColumnName("deleted");
+            entity.Property(x => x.CreatedBy).HasColumnName("created_by");
+            entity.Property(x => x.UpdatedBy).HasColumnName("updated_by");
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperVersionId);
+            entity.HasIndex(x => x.UploadedFileId);
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.CorrelationId);
+            entity.HasIndex(x => x.Step);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.CreatedAt);
         });
 
    

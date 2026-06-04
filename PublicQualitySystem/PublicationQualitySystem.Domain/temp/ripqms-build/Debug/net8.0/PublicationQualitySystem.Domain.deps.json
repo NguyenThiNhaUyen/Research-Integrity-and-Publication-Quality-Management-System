@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "PublicationQualitySystem.Domain/1.0.0": {
+        "dependencies": {
+          "PublicationQualitySystem.Shared": "1.0.0"
+        },
+        "runtime": {
+          "PublicationQualitySystem.Domain.dll": {}
+        }
+      },
+      "PublicationQualitySystem.Shared/1.0.0": {
+        "runtime": {
+          "PublicationQualitySystem.Shared.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "PublicationQualitySystem.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "PublicationQualitySystem.Shared/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

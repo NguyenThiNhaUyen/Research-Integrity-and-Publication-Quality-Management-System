@@ -9,6 +9,7 @@ using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Infrastructure.Configurations;
 using PublicationQualitySystem.Infrastructure.Options;
+using PublicationQualitySystem.Infrastructure.Security;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Shared.Exceptions;
 
@@ -18,6 +19,9 @@ public class PaperService(
     ApplicationDbContext db,
     IFileStorageService storage,
     IOptions<KafkaOptions> kafkaOptions,
+    IAuditLogService auditLog,
+    IPaperProcessingTrackerService processingTracker,
+    ICurrentUserProvider currentUser,
     ILogger<PaperService> logger) : IPaperService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -30,6 +34,7 @@ public class PaperService(
         CancellationToken cancellationToken)
     {
         var uploadId = Guid.NewGuid().ToString("N");
+        var userId = currentUser.Subject;
         var stopwatch = Stopwatch.StartNew();
 
         logger.LogInformation(
@@ -39,6 +44,15 @@ public class PaperService(
             contentType,
             !string.IsNullOrWhiteSpace(title));
 
+        await auditLog.StartStepAsync(
+            ProcessingStep.FILE_UPLOADED,
+            "Paper upload received",
+            userId: userId,
+            correlationId: uploadId,
+            message: "PDF upload request received.",
+            metadata: new { fileName, contentType, hasTitle = !string.IsNullOrWhiteSpace(title) },
+            cancellationToken: cancellationToken);
+
         if (!IsPdf(fileName, contentType))
         {
             logger.LogWarning(
@@ -46,6 +60,15 @@ public class PaperService(
                 uploadId,
                 fileName,
                 contentType);
+            await auditLog.FailStepAsync(
+                ProcessingStep.FILE_VALIDATED,
+                "Validate uploaded PDF",
+                PaperErrorCode.InvalidPdf.Message,
+                userId: userId,
+                correlationId: uploadId,
+                message: "Uploaded file is not a valid PDF.",
+                metadata: new { fileName, contentType },
+                cancellationToken: cancellationToken);
             throw new AppException(PaperErrorCode.InvalidPdf);
         }
 
@@ -55,8 +78,35 @@ public class PaperService(
         if (buffer.Length == 0)
         {
             logger.LogWarning("Paper upload rejected because file is empty. UploadId={UploadId}", uploadId);
+            await auditLog.FailStepAsync(
+                ProcessingStep.FILE_VALIDATED,
+                "Validate uploaded PDF",
+                PaperErrorCode.EmptyFile.Message,
+                userId: userId,
+                correlationId: uploadId,
+                message: "Uploaded PDF is empty.",
+                metadata: new { fileName, contentType },
+                cancellationToken: cancellationToken);
             throw new AppException(PaperErrorCode.EmptyFile);
         }
+
+        await auditLog.CompleteStepAsync(
+            ProcessingStep.FILE_VALIDATED,
+            "Validate uploaded PDF",
+            userId: userId,
+            correlationId: uploadId,
+            message: "Uploaded PDF validation completed.",
+            metadata: new { fileName, contentType, bytes = buffer.Length },
+            cancellationToken: cancellationToken);
+
+        await auditLog.CompleteStepAsync(
+            ProcessingStep.FILE_UPLOADED,
+            "Buffer uploaded PDF",
+            userId: userId,
+            correlationId: uploadId,
+            message: "Uploaded PDF stream buffered.",
+            metadata: new { fileName, contentType, bytes = buffer.Length },
+            cancellationToken: cancellationToken);
 
         var pdfBytes = buffer.ToArray();
         logger.LogInformation(
@@ -69,7 +119,9 @@ public class PaperService(
 
         var paper = new Paper
         {
-            Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(fileName) : title.Trim()
+            Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(fileName) : title.Trim(),
+            CreatedBy = userId,
+            UpdatedBy = userId
         };
         db.Papers.Add(paper);
         logger.LogInformation("Saving Paper entity. UploadId={UploadId}, Title={Title}", uploadId, paper.Title);
@@ -79,6 +131,15 @@ public class PaperService(
             uploadId,
             paper.Id,
             stopwatch.ElapsedMilliseconds);
+        await auditLog.CompleteStepAsync(
+            ProcessingStep.PAPER_CREATED,
+            "Create Paper",
+            paperId: paper.Id,
+            userId: userId,
+            correlationId: uploadId,
+            message: "Paper entity created.",
+            metadata: new { paper.Id, paper.Title },
+            cancellationToken: cancellationToken);
         
         var version = new PaperVersion
         {
@@ -95,15 +156,57 @@ public class PaperService(
             paper.Id,
             version.PdfS3Key,
             pdfBytes.Length);
-        await using (var pdfUploadStream = new MemoryStream(pdfBytes))
+        await auditLog.StartStepAsync(
+            ProcessingStep.S3_UPLOADED,
+            "Upload PDF to S3",
+            paperId: paper.Id,
+            userId: userId,
+            correlationId: uploadId,
+            message: "Uploading PDF to S3.",
+            metadata: new { version.PdfS3Key, bytes = pdfBytes.Length },
+            cancellationToken: cancellationToken);
+        try
         {
+            await using var pdfUploadStream = new MemoryStream(pdfBytes);
             await storage.UploadAsync(pdfUploadStream, version.PdfS3Key, "application/pdf", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await auditLog.FailStepAsync(
+                ProcessingStep.S3_UPLOADED,
+                "Upload PDF to S3",
+                ex.Message,
+                paperId: paper.Id,
+                userId: userId,
+                correlationId: uploadId,
+                message: "PDF upload to S3 failed.",
+                metadata: new { version.PdfS3Key, bytes = pdfBytes.Length },
+                cancellationToken: cancellationToken);
+            throw;
         }
         logger.LogInformation(
             "PDF uploaded to S3. UploadId={UploadId}, PdfS3Key={PdfS3Key}, ElapsedMs={ElapsedMs}",
             uploadId,
             version.PdfS3Key,
             stopwatch.ElapsedMilliseconds);
+        await auditLog.CompleteStepAsync(
+            ProcessingStep.S3_UPLOADED,
+            "Upload PDF to S3",
+            paperId: paper.Id,
+            userId: userId,
+            correlationId: uploadId,
+            message: "PDF uploaded to S3.",
+            metadata: new { version.PdfS3Key, bytes = pdfBytes.Length },
+            cancellationToken: cancellationToken);
+
+        await auditLog.SkipStepAsync(
+            ProcessingStep.UPLOADED_FILE_CREATED,
+            "Create UploadedFile",
+            paperId: paper.Id,
+            userId: userId,
+            correlationId: uploadId,
+            message: "UploadedFile entity is not implemented in this repository.",
+            cancellationToken: cancellationToken);
 
         db.PaperVersions.Add(version);
         paper.CurrentVersion = version.VersionNumber;
@@ -114,6 +217,22 @@ public class PaperService(
             uploadId,
             version.Id,
             stopwatch.ElapsedMilliseconds);
+        await auditLog.CompleteStepAsync(
+            ProcessingStep.PAPER_VERSION_CREATED,
+            "Create PaperVersion",
+            paperId: paper.Id,
+            paperVersionId: version.Id,
+            userId: userId,
+            correlationId: uploadId,
+            message: "PaperVersion entity created.",
+            metadata: new { version.Id, version.VersionNumber, version.PdfS3Key },
+            cancellationToken: cancellationToken);
+
+        await processingTracker.CreateForUploadAsync(
+            paper.Id,
+            version.Id,
+            uploadId,
+            cancellationToken);
 
         var metadata = new PaperMetadata
         {
@@ -133,18 +252,27 @@ public class PaperService(
             PaperVersionId = version.Id,
             PdfS3Key = version.PdfS3Key,
             OriginalFileName = version.OriginalFileName,
-            UploadedAt = DateTime.UtcNow
+            UploadedAt = DateTime.UtcNow,
+            CorrelationId = uploadId
         };
 
-        db.OutboxMessages.Add(new OutboxMessage
+        var paperUploadedOutbox = new OutboxMessage
         {
             Topic = kafkaOptions.Value.PaperUploadedTopic,
             Key = paper.Id.ToString(),
             Type = nameof(PaperUploadedIntegrationEvent),
             Payload = JsonSerializer.Serialize(integrationEvent, JsonOptions),
             Status = OutboxMessageStatus.Pending
-        });
+        };
+        db.OutboxMessages.Add(paperUploadedOutbox);
         await db.SaveChangesAsync(cancellationToken);
+        await processingTracker.RecordEventPublishedAsync(
+            version.Id,
+            ProcessingStage.UPLOADED,
+            integrationEvent.EventId,
+            nameof(PaperUploadedIntegrationEvent),
+            paperUploadedOutbox.Payload,
+            cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         logger.LogInformation(
@@ -206,10 +334,12 @@ public class PaperService(
             DoiSource = metadata.DoiSource,
             JournalSource = metadata.JournalSource,
             Keywords = DeserializeJson<IReadOnlyList<string>>(metadata.KeywordsJson) ?? Array.Empty<string>(),
+            FundingOrganizations = DeserializeJson<IReadOnlyList<string>>(metadata.FundingOrganizationsJson) ?? Array.Empty<string>(),
             References = DeserializeJson<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>(),
             ExtractionStatus = metadata.ExtractionStatus,
             ExtractedAt = metadata.ExtractedAt,
-            ExtractionError = metadata.ExtractionError
+            ExtractionError = metadata.ExtractionError,
+            MetadataQuality = MetadataQualityScoreMapper.ToResponse(metadata)
         };
     }
 

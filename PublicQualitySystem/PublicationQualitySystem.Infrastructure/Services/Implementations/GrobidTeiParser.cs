@@ -62,6 +62,7 @@ public static partial class GrobidTeiParser
             Pages = ParsePages(monogr),
             CorrespondingAuthor = ParseCorrespondingAuthor(analytic),
             Keywords = ParseKeywords(tei),
+            FundingOrganizations = ParseFundingOrganizations(fileDesc),
             References = references
         };
     }
@@ -148,8 +149,43 @@ public static partial class GrobidTeiParser
             LastName = lastName,
             FullName = fullName,
             Email = CleanText(author.Descendants(Tei + "email").FirstOrDefault()),
-            Affiliation = FormatAffiliation(author.Elements(Tei + "affiliation").FirstOrDefault())
+            Affiliation = FormatAffiliations(author.Elements(Tei + "affiliation"))
         };
+    }
+
+    private static IReadOnlyList<string> ParseFundingOrganizations(XElement? fileDesc)
+    {
+        var funders = new List<string>();
+        foreach (var funder in fileDesc?
+            .Descendants(Tei + "titleStmt")
+            .Elements(Tei + "funder") ?? Enumerable.Empty<XElement>())
+        {
+            var orgNames = funder.Elements(Tei + "orgName")
+                .OrderByDescending(x => AttrEquals(x, "type", "full"))
+                .Select(CleanText)
+                .Where(IsMeaningfulFundingOrganization)
+                .Select(x => x!)
+                .ToArray();
+
+            var fallbackFunder = CleanText(funder);
+            var candidates = orgNames.Length > 0
+                ? orgNames
+                : string.IsNullOrWhiteSpace(fallbackFunder)
+                    ? []
+                    : [fallbackFunder];
+
+            foreach (var orgName in candidates)
+            {
+                var normalized = NormalizeSpaces(orgName);
+                if (IsMeaningfulFundingOrganization(normalized)
+                    && !funders.Contains(normalized!, StringComparer.OrdinalIgnoreCase))
+                {
+                    funders.Add(normalized!);
+                }
+            }
+        }
+
+        return funders;
     }
 
     private static IReadOnlyList<string> ParseKeywords(XElement tei)
@@ -241,6 +277,8 @@ public static partial class GrobidTeiParser
         }
 
         var organizations = affiliation.Elements(Tei + "orgName")
+            .Where(x => IsAffiliationOrgName(x)
+                || !affiliation.Elements(Tei + "orgName").Any(IsAffiliationOrgName))
             .Select(CleanText)
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x!)
@@ -258,6 +296,31 @@ public static partial class GrobidTeiParser
         var parts = organizations.Concat(addressParts).ToArray();
         return parts.Length > 0 ? string.Join(", ", parts) : CleanText(affiliation);
     }
+
+    private static string? FormatAffiliations(IEnumerable<XElement> affiliations)
+    {
+        var values = affiliations
+            .Select(FormatAffiliation)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return values.Length > 0 ? string.Join("; ", values) : null;
+    }
+
+    private static bool IsAffiliationOrgName(XElement orgName)
+    {
+        var type = (string?)orgName.Attribute("type");
+        return string.IsNullOrWhiteSpace(type)
+            || type.Equals("department", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("institution", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("laboratory", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsMeaningfulFundingOrganization(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && !value.Trim().Equals("unknown", StringComparison.OrdinalIgnoreCase);
 
     private static string? NormalizeDoi(string? rawDoi, ILogger? logger)
     {

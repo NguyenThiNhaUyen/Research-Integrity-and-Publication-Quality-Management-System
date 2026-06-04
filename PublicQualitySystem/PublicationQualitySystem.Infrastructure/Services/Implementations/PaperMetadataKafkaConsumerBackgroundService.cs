@@ -112,6 +112,9 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
         var grobid = scope.ServiceProvider.GetRequiredService<IGrobidService>();
         var crossref = scope.ServiceProvider.GetRequiredService<ICrossrefService>();
+        var qualityScoring = scope.ServiceProvider.GetRequiredService<IMetadataQualityScoringService>();
+        var auditLog = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
+        var processingTracker = scope.ServiceProvider.GetRequiredService<IPaperProcessingTrackerService>();
 
         var version = await db.PaperVersions
             .Include(x => x.Paper)
@@ -153,6 +156,21 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractionStatus = MetadataExtractionStatus.Processing;
             metadata.ExtractionError = null;
             await db.SaveChangesAsync(cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                version.Id,
+                ProcessingStage.METADATA_REQUESTED,
+                "GrobidMetadataExtractionStarted",
+                cancellationToken: cancellationToken);
+
+            await auditLog.StartStepAsync(
+                ProcessingStep.GROBID_METADATA_EXTRACTION,
+                "Extract metadata with GROBID",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                correlationId: message.CorrelationId,
+                message: "GROBID metadata extraction started.",
+                metadata: new { version.PdfS3Key, version.OriginalFileName },
+                cancellationToken: cancellationToken);
 
             await using var pdfStream = await storage.DownloadAsync(version.PdfS3Key, cancellationToken);
             var extracted = await grobid.ExtractMetadataAsync(
@@ -174,8 +192,30 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
 
             if (!string.IsNullOrWhiteSpace(extracted.Doi))
             {
+                await processingTracker.RecordStepStartedAsync(
+                    version.Id,
+                    ProcessingStage.METADATA_REQUESTED,
+                    "CrossrefEnrichmentStarted",
+                    cancellationToken: cancellationToken);
                 var crossrefMetadata = await crossref.GetWorkByDoiAsync(extracted.Doi, cancellationToken);
                 extracted = ScholarlyMetadataMerger.Merge(extracted, crossrefMetadata);
+                if (crossrefMetadata is null)
+                {
+                    await processingTracker.RecordStepSkippedAsync(
+                        version.Id,
+                        ProcessingStage.METADATA_REQUESTED,
+                        "CrossrefEnrichmentSkipped",
+                        "Crossref returned no enrichment data.",
+                        cancellationToken);
+                }
+                else
+                {
+                    await processingTracker.RecordStepCompletedAsync(
+                        version.Id,
+                        ProcessingStage.METADATA_REQUESTED,
+                        "CrossrefEnrichmentCompleted",
+                        cancellationToken: cancellationToken);
+                }
             }
             else
             {
@@ -183,6 +223,12 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                     "Crossref lookup skipped because DOI was not found. PaperId={PaperId}, PaperVersionId={PaperVersionId}",
                     version.PaperId,
                     version.Id);
+                await processingTracker.RecordStepSkippedAsync(
+                    version.Id,
+                    ProcessingStage.METADATA_REQUESTED,
+                    "CrossrefEnrichmentSkipped",
+                    "DOI was not found.",
+                    cancellationToken);
             }
 
             metadata.Title = extracted.Title;
@@ -202,6 +248,7 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.DoiSource = extracted.DoiSource;
             metadata.JournalSource = extracted.JournalSource;
             metadata.KeywordsJson = JsonSerializer.Serialize(extracted.Keywords, JsonOptions);
+            metadata.FundingOrganizationsJson = JsonSerializer.Serialize(extracted.FundingOrganizations, JsonOptions);
             metadata.AuthorsJson = JsonSerializer.Serialize(extracted.Authors, JsonOptions);
             metadata.ReferencesJson = JsonSerializer.Serialize(extracted.References, JsonOptions);
             metadata.RawGrobidXml = extracted.RawGrobidXml;
@@ -210,6 +257,105 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
+            await processingTracker.RecordStepCompletedAsync(
+                version.Id,
+                ProcessingStage.METADATA_COMPLETED,
+                "GrobidMetadataExtractionCompleted",
+                cancellationToken: cancellationToken);
+
+            await auditLog.CompleteStepAsync(
+                ProcessingStep.GROBID_METADATA_EXTRACTION,
+                "Extract metadata with GROBID",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                correlationId: message.CorrelationId,
+                message: "GROBID metadata extraction completed.",
+                metadata: new
+                {
+                    hasTitle = !string.IsNullOrWhiteSpace(metadata.Title),
+                    hasDoi = !string.IsNullOrWhiteSpace(metadata.Doi),
+                    authorCount = extracted.Authors.Count,
+                    referenceCount = extracted.References.Count
+                },
+                cancellationToken: cancellationToken);
+
+            await auditLog.StartStepAsync(
+                ProcessingStep.METADATA_QUALITY_SCORING,
+                "Calculate metadata quality score",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                correlationId: message.CorrelationId,
+                message: "Metadata quality scoring started.",
+                cancellationToken: cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                version.Id,
+                ProcessingStage.QUALITY_SCORING_REQUESTED,
+                "MetadataQualityScoringStarted",
+                cancellationToken: cancellationToken);
+
+            var qualityScore = qualityScoring.Calculate(metadata);
+            MetadataQualityScoreMapper.Apply(metadata, qualityScore, DateTime.UtcNow);
+            var metadataQualityScoredEvent = new MetadataQualityScoredIntegrationEvent
+            {
+                PaperId = version.PaperId,
+                PaperVersionId = version.Id,
+                PaperMetadataId = metadata.Id,
+                TotalScore = qualityScore.TotalScore,
+                CoreScore = qualityScore.CoreScore,
+                Grade = qualityScore.Grade,
+                CanProceed = qualityScore.CanProceed,
+                CorrelationId = message.CorrelationId
+            };
+            AddOutbox(db, options.Value.MetadataQualityScoredTopic, version.PaperId.ToString(), metadataQualityScoredEvent);
+            await db.SaveChangesAsync(cancellationToken);
+            await processingTracker.RecordStepCompletedAsync(
+                version.Id,
+                ProcessingStage.QUALITY_SCORING_COMPLETED,
+                "MetadataQualityScoringCompleted",
+                cancellationToken: cancellationToken);
+            await processingTracker.RecordEventPublishedAsync(
+                version.Id,
+                ProcessingStage.QUALITY_SCORING_COMPLETED,
+                metadataQualityScoredEvent.EventId,
+                nameof(MetadataQualityScoredIntegrationEvent),
+                JsonSerializer.Serialize(metadataQualityScoredEvent, JsonOptions),
+                cancellationToken);
+
+            await auditLog.CompleteStepAsync(
+                ProcessingStep.METADATA_QUALITY_SCORING,
+                "Calculate metadata quality score",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                correlationId: message.CorrelationId,
+                message: "Metadata quality scoring completed.",
+                metadata: new
+                {
+                    qualityScore.TotalScore,
+                    qualityScore.Grade,
+                    qualityScore.CanProceed,
+                    qualityScore.MissingFields
+                },
+                cancellationToken: cancellationToken);
+
+            logger.LogInformation(
+                "Metadata quality score calculated. PaperId={PaperId}, PaperVersionId={PaperVersionId}, TotalScore={TotalScore}, Grade={Grade}, CanProceed={CanProceed}, MissingFields={MissingFields}, Warnings={Warnings}",
+                version.PaperId,
+                version.Id,
+                qualityScore.TotalScore,
+                qualityScore.Grade,
+                qualityScore.CanProceed,
+                string.Join(", ", qualityScore.MissingFields),
+                string.Join(" | ", qualityScore.Warnings));
+
+            if (!qualityScore.CanProceed)
+            {
+                logger.LogWarning(
+                    "OpenAlex similarity check will be skipped by metadata quality gate. PaperId={PaperId}, PaperVersionId={PaperVersionId}, TotalScore={TotalScore}, Grade={Grade}",
+                    version.PaperId,
+                    version.Id,
+                    qualityScore.TotalScore,
+                    qualityScore.Grade);
+            }
 
             logger.LogInformation(
                 "Metadata saved. PaperId={PaperId}, PaperVersionId={PaperVersionId}, MetadataSource={MetadataSource}, DoiSource={DoiSource}, JournalSource={JournalSource}",
@@ -249,6 +395,34 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractionStatus = MetadataExtractionStatus.Failed;
             metadata.ExtractionError = ex.Message;
             await db.SaveChangesAsync(CancellationToken.None);
+            await processingTracker.RecordStepFailedAsync(
+                version.Id,
+                ProcessingStage.FAILED,
+                "GrobidMetadataExtractionFailed",
+                ex.Message,
+                cancellationToken: CancellationToken.None);
+            await auditLog.FailStepAsync(
+                ProcessingStep.GROBID_METADATA_EXTRACTION,
+                "Extract metadata with GROBID",
+                ex.Message,
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                correlationId: message.CorrelationId,
+                message: "GROBID metadata extraction failed.",
+                metadata: new { version.PdfS3Key, version.OriginalFileName },
+                cancellationToken: CancellationToken.None);
         }
+    }
+
+    private static void AddOutbox<TEvent>(ApplicationDbContext db, string topic, string key, TEvent payload)
+    {
+        db.OutboxMessages.Add(new OutboxMessage
+        {
+            Topic = topic,
+            Key = key,
+            Type = typeof(TEvent).Name,
+            Payload = JsonSerializer.Serialize(payload, JsonOptions),
+            Status = OutboxMessageStatus.Pending
+        });
     }
 }

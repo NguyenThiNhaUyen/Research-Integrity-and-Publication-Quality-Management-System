@@ -6,6 +6,9 @@ public class AuthorDto
     public string? MiddleName { get; set; }
     public string? LastName { get; set; }
     public string? FullName { get; set; }
+    public string? Orcid { get; set; }
+    public string? RawAuthorName { get; set; }
+    public bool? IsCorresponding { get; set; }
     public string? Email { get; set; }
     public string? Affiliation { get; set; }
 }
