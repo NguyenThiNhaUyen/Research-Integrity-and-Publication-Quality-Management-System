@@ -1,6 +1,9 @@
 using System.Reflection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
+using PublicationQualitySystem.Infrastructure.Configurations;
 using PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 namespace PublicationQualitySystem.Infrastructure.Tests;
@@ -143,41 +146,33 @@ public class PaperProcessingTrackerServiceTests
         Assert.Equal(100, InvokePrivateStatic<int>("ProgressFor", ProcessingStage.COMPLETED));
     }
 
-    [Theory]
-    [InlineData(ProcessingStage.OCR_REQUESTED, ProcessingStatus.PROCESSING, "NougatMarkdownConversionStarted", "MarkdownStatus", "Processing")]
-    [InlineData(ProcessingStage.OCR_COMPLETED, ProcessingStatus.COMPLETED, "NougatMarkdownConversionCompleted", "MarkdownStatus", "Completed")]
-    [InlineData(ProcessingStage.FAILED, ProcessingStatus.FAILED, "NougatMarkdownConversionFailed", "MarkdownStatus", "Failed")]
-    [InlineData(ProcessingStage.METADATA_COMPLETED, ProcessingStatus.COMPLETED, "GrobidMetadataExtractionCompleted", "MetadataExtractionStatus", "Completed")]
-    [InlineData(ProcessingStage.METADATA_REQUESTED, ProcessingStatus.COMPLETED, "CrossrefEnrichmentCompleted", "CrossrefStatus", "Completed")]
-    [InlineData(ProcessingStage.METADATA_REQUESTED, ProcessingStatus.COMPLETED, "CrossrefEnrichmentSkipped", "CrossrefStatus", "Skipped")]
-    [InlineData(ProcessingStage.QUALITY_SCORING_COMPLETED, ProcessingStatus.COMPLETED, "MetadataQualityScoringCompleted", "MetadataQualityStatus", "Completed")]
-    [InlineData(ProcessingStage.OPENALEX_COMPLETED, ProcessingStatus.COMPLETED, "OpenAlexSimilarityCheckCompleted", "OpenAlexStatus", "Completed")]
-    public void LegacyStatusUpdatesFor_MapsWorkflowEventsToLegacyColumns(
-        ProcessingStage stage,
-        ProcessingStatus status,
-        string eventType,
-        string propertyName,
-        string expectedValue)
+    [Fact]
+    public void EfModel_DoesNotContainShadowBusinessPropertiesOnNormalEntities()
     {
-        var updates = InvokePrivateStatic<IReadOnlyDictionary<string, string>>(
-            "LegacyStatusUpdatesFor",
-            stage,
-            status,
-            eventType);
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=localhost;Database=model_validation;Username=model_validation;Password=model_validation")
+            .Options;
+        using var db = new ApplicationDbContext(options);
 
-        Assert.Equal(expectedValue, updates[propertyName]);
+        var invalidShadowProperties = db.Model.GetEntityTypes()
+            .Where(entityType => entityType.ClrType != typeof(Dictionary<string, object>))
+            .SelectMany(entityType => entityType.GetProperties()
+                .Where(property => property.IsShadowProperty() && !IsAllowedShadowProperty(entityType, property))
+                .Select(property => $"{entityType.ClrType.Name}.{property.Name}"))
+            .ToArray();
+
+        Assert.Empty(invalidShadowProperties);
     }
 
-    [Fact]
-    public void LegacyStatusUpdatesFor_FinalCompletionSetsCurrentStepCompleted()
+    private static bool IsAllowedShadowProperty(IEntityType entityType, IProperty property)
     {
-        var updates = InvokePrivateStatic<IReadOnlyDictionary<string, string>>(
-            "LegacyStatusUpdatesFor",
-            ProcessingStage.COMPLETED,
-            ProcessingStatus.COMPLETED,
-            "PaperProcessingCompleted");
+        if (entityType.IsOwned())
+        {
+            return true;
+        }
 
-        Assert.Equal("Completed", updates["CurrentStep"]);
+        return property.IsForeignKey()
+            && property.Name.EndsWith("Id", StringComparison.Ordinal);
     }
 
     private static void InvokePrivateStatic(string methodName, params object?[] parameters)

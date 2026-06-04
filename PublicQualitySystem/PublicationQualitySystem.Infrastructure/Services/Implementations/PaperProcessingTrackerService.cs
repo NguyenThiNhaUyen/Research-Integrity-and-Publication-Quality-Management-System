@@ -41,7 +41,6 @@ public sealed class PaperProcessingTrackerService(
                 LastUpdatedAt = now
             };
             db.PaperProcessingTrackers.Add(tracker);
-            ApplyLegacyDefaults(tracker);
             await db.SaveChangesAsync(cancellationToken);
         }
 
@@ -50,7 +49,6 @@ public sealed class PaperProcessingTrackerService(
         tracker.OverallStatus = ProcessingStatus.PENDING;
         tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(ProcessingStage.UPLOADED));
         tracker.LastUpdatedAt = now;
-        ApplyLegacyUpdates(tracker, ProcessingStage.UPLOADED, ProcessingStatus.PENDING, "UploadCreated");
 
         AddEvent(
             tracker,
@@ -96,7 +94,6 @@ public sealed class PaperProcessingTrackerService(
                 LastUpdatedAt = DateTime.UtcNow
             };
             db.PaperProcessingTrackers.Add(tracker);
-            ApplyLegacyDefaults(tracker);
             await db.SaveChangesAsync(cancellationToken);
         }
 
@@ -193,7 +190,6 @@ public sealed class PaperProcessingTrackerService(
         tracker.OverallStatus = ProcessingStatus.PROCESSING;
         tracker.RetryCount = retryCount;
         tracker.LastUpdatedAt = DateTime.UtcNow;
-        ApplyLegacyUpdates(tracker, stage, ProcessingStatus.PROCESSING, "RetryScheduled");
         AddEvent(
             tracker,
             eventId: null,
@@ -228,7 +224,6 @@ public sealed class PaperProcessingTrackerService(
             UpdateSnapshot(tracker, stage, status, payloadJson);
         }
 
-        ApplyLegacyUpdates(tracker, stage, status, eventType);
         AddEvent(tracker, eventId, eventType, stage, status, payloadJson, errorMessage);
     }
 
@@ -312,142 +307,6 @@ public sealed class PaperProcessingTrackerService(
             !string.IsNullOrWhiteSpace(x.EventId)
             && x.EventId == eventId
             && x.EventType == eventType);
-
-    private void ApplyLegacyDefaults(PaperProcessingTracker tracker)
-    {
-        var entry = db.Entry(tracker);
-        entry.Property("CurrentStep").CurrentValue = "Upload";
-        entry.Property("UploadStatus").CurrentValue = "Completed";
-        entry.Property("MarkdownStatus").CurrentValue = "NotStarted";
-        entry.Property("MetadataExtractionStatus").CurrentValue = "NotStarted";
-        entry.Property("MetadataQualityStatus").CurrentValue = "NotStarted";
-        entry.Property("OpenAlexStatus").CurrentValue = "NotStarted";
-        entry.Property("CrossrefStatus").CurrentValue = "NotStarted";
-        entry.Property("AiReviewStatus").CurrentValue = "NotStarted";
-        entry.Property("IntegrityScreeningStatus").CurrentValue = "NotStarted";
-    }
-
-    private void ApplyLegacyUpdates(
-        PaperProcessingTracker tracker,
-        ProcessingStage stage,
-        ProcessingStatus status,
-        string eventType)
-    {
-        var entry = db.Entry(tracker);
-        foreach (var update in LegacyStatusUpdatesFor(stage, status, eventType))
-        {
-            if (update.Key == "CurrentStep")
-            {
-                var currentStep = entry.Property(update.Key).CurrentValue as string;
-                if (string.Equals(currentStep, "Completed", StringComparison.OrdinalIgnoreCase)
-                    && !string.Equals(update.Value, "Completed", StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                entry.Property(update.Key).CurrentValue = update.Value;
-                continue;
-            }
-
-            var property = entry.Property(update.Key);
-            var current = property.CurrentValue as string;
-            if (string.Equals(current, "Completed", StringComparison.OrdinalIgnoreCase)
-                && string.Equals(update.Value, "Processing", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            property.CurrentValue = update.Value;
-        }
-    }
-
-    private static IReadOnlyDictionary<string, string> LegacyStatusUpdatesFor(
-        ProcessingStage stage,
-        ProcessingStatus status,
-        string eventType)
-    {
-        var updates = new Dictionary<string, string>(StringComparer.Ordinal);
-        var normalizedEventType = eventType ?? string.Empty;
-
-        if (stage == ProcessingStage.COMPLETED && status == ProcessingStatus.COMPLETED)
-        {
-            updates["CurrentStep"] = "Completed";
-            return updates;
-        }
-
-        if (status == ProcessingStatus.FAILED)
-        {
-            updates["CurrentStep"] = "Failed";
-        }
-        else if (stage != ProcessingStage.UPLOADED)
-        {
-            updates["CurrentStep"] = NameFor(stage);
-        }
-
-        if (stage == ProcessingStage.UPLOADED || normalizedEventType.Contains("Upload", StringComparison.OrdinalIgnoreCase))
-        {
-            updates["CurrentStep"] = "Upload";
-            updates["UploadStatus"] = status == ProcessingStatus.FAILED ? "Failed" : "Completed";
-        }
-
-        ApplyDomainStatus(updates, "MarkdownStatus", IsOcrEvent(stage, normalizedEventType), status, normalizedEventType);
-        ApplyDomainStatus(updates, "MetadataExtractionStatus", IsMetadataEvent(stage, normalizedEventType), status, normalizedEventType);
-        ApplyDomainStatus(updates, "CrossrefStatus", IsCrossrefEvent(normalizedEventType), status, normalizedEventType);
-        ApplyDomainStatus(updates, "MetadataQualityStatus", IsQualityEvent(stage, normalizedEventType), status, normalizedEventType);
-        ApplyDomainStatus(updates, "OpenAlexStatus", IsOpenAlexEvent(stage, normalizedEventType), status, normalizedEventType);
-
-        return updates;
-    }
-
-    private static void ApplyDomainStatus(
-        Dictionary<string, string> updates,
-        string propertyName,
-        bool applies,
-        ProcessingStatus status,
-        string eventType)
-    {
-        if (!applies)
-        {
-            return;
-        }
-
-        if (eventType.Contains("Skipped", StringComparison.OrdinalIgnoreCase))
-        {
-            updates[propertyName] = "Skipped";
-            return;
-        }
-
-        updates[propertyName] = status switch
-        {
-            ProcessingStatus.FAILED => "Failed",
-            ProcessingStatus.COMPLETED => "Completed",
-            ProcessingStatus.PROCESSING => "Processing",
-            _ => "NotStarted"
-        };
-    }
-
-    private static bool IsOcrEvent(ProcessingStage stage, string eventType) =>
-        stage is ProcessingStage.OCR_REQUESTED or ProcessingStage.OCR_COMPLETED
-        || eventType.Contains("Nougat", StringComparison.OrdinalIgnoreCase)
-        || eventType.Contains("Markdown", StringComparison.OrdinalIgnoreCase)
-        || eventType.Contains("Ocr", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsMetadataEvent(ProcessingStage stage, string eventType) =>
-        stage is ProcessingStage.METADATA_REQUESTED or ProcessingStage.METADATA_COMPLETED
-        || eventType.Contains("Grobid", StringComparison.OrdinalIgnoreCase)
-        || eventType.Contains("MetadataExtraction", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsCrossrefEvent(string eventType) =>
-        eventType.Contains("Crossref", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsQualityEvent(ProcessingStage stage, string eventType) =>
-        stage is ProcessingStage.QUALITY_SCORING_REQUESTED or ProcessingStage.QUALITY_SCORING_COMPLETED
-        || eventType.Contains("MetadataQuality", StringComparison.OrdinalIgnoreCase)
-        || eventType.Contains("QualityScoring", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsOpenAlexEvent(ProcessingStage stage, string eventType) =>
-        stage is ProcessingStage.OPENALEX_REQUESTED or ProcessingStage.OPENALEX_COMPLETED
-        || eventType.Contains("OpenAlex", StringComparison.OrdinalIgnoreCase);
 
     private static void UpdateSnapshot(
         PaperProcessingTracker tracker,

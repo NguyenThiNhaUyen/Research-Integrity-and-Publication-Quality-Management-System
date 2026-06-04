@@ -201,15 +201,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.StartedAt).HasColumnName("started_at");
             entity.Property(x => x.LastUpdatedAt).HasColumnName("last_updated_at");
             entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
-            entity.Property<string>("CurrentStep").HasColumnName("current_step").HasDefaultValue("Upload").HasMaxLength(100);
-            entity.Property<string>("UploadStatus").HasColumnName("upload_status").HasDefaultValue("Completed").HasMaxLength(50);
-            entity.Property<string>("MarkdownStatus").HasColumnName("markdown_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("MetadataExtractionStatus").HasColumnName("metadata_extraction_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("MetadataQualityStatus").HasColumnName("metadata_quality_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("OpenAlexStatus").HasColumnName("openalex_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("CrossrefStatus").HasColumnName("crossref_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("AiReviewStatus").HasColumnName("ai_review_status").HasDefaultValue("NotStarted").HasMaxLength(50);
-            entity.Property<string>("IntegrityScreeningStatus").HasColumnName("integrity_screening_status").HasDefaultValue("NotStarted").HasMaxLength(50);
+
             entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(x => x.PaperId);

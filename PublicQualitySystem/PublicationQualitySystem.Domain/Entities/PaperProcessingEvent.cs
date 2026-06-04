@@ -5,6 +5,7 @@ namespace PublicationQualitySystem.Domain.Entities;
 
 public class PaperProcessingEvent : BaseEntity
 {
+    
     public long PaperId { get; set; }
     public Paper Paper { get; set; } = null!;
     public long PaperVersionId { get; set; }
