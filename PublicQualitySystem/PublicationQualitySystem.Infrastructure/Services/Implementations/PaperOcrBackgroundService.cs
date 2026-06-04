@@ -48,6 +48,8 @@ public sealed class PaperOcrBackgroundService(
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
         var nougat = scope.ServiceProvider.GetRequiredService<INougatService>();
+        var auditLog = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
+        var processingTracker = scope.ServiceProvider.GetRequiredService<IPaperProcessingTrackerService>();
 
         var version = await db.PaperVersions
             .Include(x => x.Paper)
@@ -66,6 +68,16 @@ public sealed class PaperOcrBackgroundService(
             version.ConversionStatus = ConversionStatus.Processing;
             version.ConversionError = null;
             await db.SaveChangesAsync(cancellationToken);
+            await processingTracker.MarkStepStartedAsync(version.Id, PaperProcessingStep.MarkdownConversion, cancellationToken);
+
+            await auditLog.StartStepAsync(
+                ProcessingStep.NOUGAT_MARKDOWN_CONVERSION,
+                "Convert PDF to Markdown with Nougat",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                message: "Nougat PDF to Markdown conversion started.",
+                metadata: new { version.PdfS3Key, version.OriginalFileName },
+                cancellationToken: cancellationToken);
 
             await using var pdfStream = await storage.DownloadAsync(version.PdfS3Key, cancellationToken);
             var markdown = await nougat.ConvertPdfToMarkdownAsync(
@@ -91,6 +103,20 @@ public sealed class PaperOcrBackgroundService(
             version.ConvertedAt = DateTime.UtcNow;
             version.ConversionError = null;
             await db.SaveChangesAsync(cancellationToken);
+            await processingTracker.MarkStepCompletedAsync(
+                version.Id,
+                PaperProcessingStep.MarkdownConversion,
+                $"{{\"markdownS3Key\":\"{markdownKey}\",\"markdownLength\":{markdown.Length}}}",
+                cancellationToken);
+
+            await auditLog.CompleteStepAsync(
+                ProcessingStep.NOUGAT_MARKDOWN_CONVERSION,
+                "Convert PDF to Markdown with Nougat",
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                message: "Nougat PDF to Markdown conversion completed.",
+                metadata: new { markdownS3Key = markdownKey, markdownLength = markdown.Length },
+                cancellationToken: cancellationToken);
 
             logger.LogInformation(
                 "Paper OCR job completed. PaperVersionId={PaperVersionId}, MarkdownS3Key={MarkdownS3Key}, ElapsedMs={ElapsedMs}",
@@ -109,6 +135,21 @@ public sealed class PaperOcrBackgroundService(
             version.ConversionStatus = ConversionStatus.Failed;
             version.ConversionError = ex.Message;
             await db.SaveChangesAsync(CancellationToken.None);
+            await processingTracker.MarkStepFailedAsync(
+                version.Id,
+                PaperProcessingStep.MarkdownConversion,
+                nameof(NougatErrorCode.ConversionFailed),
+                ex.Message,
+                cancellationToken: CancellationToken.None);
+            await auditLog.FailStepAsync(
+                ProcessingStep.NOUGAT_MARKDOWN_CONVERSION,
+                "Convert PDF to Markdown with Nougat",
+                ex.Message,
+                paperId: version.PaperId,
+                paperVersionId: version.Id,
+                message: "Nougat PDF to Markdown conversion failed.",
+                metadata: new { version.PdfS3Key, version.OriginalFileName },
+                cancellationToken: CancellationToken.None);
         }
     }
 

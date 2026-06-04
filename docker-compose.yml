@@ -28,17 +28,6 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: ripqms-kafka-ui
-    ports:
-      - "8085:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: ripqms-local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
-    depends_on:
-      - kafka
-
   grobid:
     image: grobid/grobid:0.9.0-crf
     container_name: ripqms-grobid
@@ -59,10 +48,13 @@ services:
     environment:
       NOUGAT_TEMP_DIR: /app/temp
       NOUGAT_MODEL: 0.1.0-small
-      NOUGAT_MAX_WORKERS: 2
-      NOUGAT_BATCH_SIZE: 2
-      NOUGAT_MAX_RETRY: 3
+      NOUGAT_MAX_WORKERS: 1
+      NOUGAT_BATCH_SIZE: 1
+      NOUGAT_MAX_RETRY: 1
       NOUGAT_USE_CUDA: "false"
+      NOUGAT_MAX_CONCURRENT_PAGES: 1
+      NOUGAT_PAGE_TIMEOUT_SECONDS: 180
+      PYTHONUNBUFFERED: 1
     volumes:
       - ./temp:/app/temp
     healthcheck:
@@ -70,5 +62,5 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 60s
     command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"]

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PublicationQualitySystem.Infrastructure.Configurations;
@@ -11,9 +12,11 @@ using PublicationQualitySystem.Infrastructure.Configurations;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260603225506_AddPaperSimilarityChecks")]
+    partial class AddPaperSimilarityChecks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -433,252 +436,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     b.ToTable("paper_metadata", (string)null);
                 });
 
-            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("AiReviewStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("ai_review_status");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("completed_at");
-
-                    b.Property<string>("CorrelationId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("correlation_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CrossrefStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("crossref_status");
-
-                    b.Property<string>("CurrentStep")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("current_step");
-
-                    b.Property<bool>("Deleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("ErrorDetailsJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("error_details_json");
-
-                    b.Property<DateTime?>("FailedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("failed_at");
-
-                    b.Property<string>("IntegrityScreeningStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("integrity_screening_status");
-
-                    b.Property<string>("LastErrorCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("last_error_code");
-
-                    b.Property<string>("LastErrorMessage")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)")
-                        .HasColumnName("last_error_message");
-
-                    b.Property<string>("LastFailedStep")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("last_failed_step");
-
-                    b.Property<DateTime?>("LastRetryAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_retry_at");
-
-                    b.Property<DateTime>("LastUpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_updated_at");
-
-                    b.Property<DateTime?>("MarkdownCompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("markdown_completed_at");
-
-                    b.Property<string>("MarkdownGeneratedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("markdown_generated_event_id");
-
-                    b.Property<string>("MarkdownRequestedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("markdown_requested_event_id");
-
-                    b.Property<DateTime?>("MarkdownStartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("markdown_started_at");
-
-                    b.Property<string>("MarkdownStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("markdown_status");
-
-                    b.Property<DateTime?>("MetadataCompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("metadata_completed_at");
-
-                    b.Property<string>("MetadataExtractedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("metadata_extracted_event_id");
-
-                    b.Property<string>("MetadataExtractionRequestedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("metadata_extraction_requested_event_id");
-
-                    b.Property<string>("MetadataExtractionStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("metadata_extraction_status");
-
-                    b.Property<DateTime?>("MetadataQualityCompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("metadata_quality_completed_at");
-
-                    b.Property<string>("MetadataQualityScoredEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("metadata_quality_scored_event_id");
-
-                    b.Property<string>("MetadataQualityStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("metadata_quality_status");
-
-                    b.Property<DateTime?>("MetadataStartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("metadata_started_at");
-
-                    b.Property<DateTime?>("NextRetryAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("next_retry_at");
-
-                    b.Property<DateTime?>("OpenAlexCompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("openalex_completed_at");
-
-                    b.Property<string>("OpenAlexCompletedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("openalex_completed_event_id");
-
-                    b.Property<string>("OpenAlexRequestedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("openalex_requested_event_id");
-
-                    b.Property<string>("OpenAlexSkippedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("openalex_skipped_event_id");
-
-                    b.Property<DateTime?>("OpenAlexStartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("openalex_started_at");
-
-                    b.Property<string>("OpenAlexStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("openalex_status");
-
-                    b.Property<string>("OverallStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("overall_status");
-
-                    b.Property<long>("PaperId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("paper_id");
-
-                    b.Property<string>("PaperUploadedEventId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("paper_uploaded_event_id");
-
-                    b.Property<long>("PaperVersionId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("paper_version_id");
-
-                    b.Property<int>("ProgressPercent")
-                        .HasColumnType("integer")
-                        .HasColumnName("progress_percent");
-
-                    b.Property<int>("RetryCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("retry_count");
-
-                    b.Property<DateTime?>("StartedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("started_at");
-
-                    b.Property<string>("StepDetailsJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("step_details_json");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UploadCompletedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("upload_completed_at");
-
-                    b.Property<string>("UploadStatus")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("upload_status");
-
-                    b.Property<string>("WarningsJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("warnings_json");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CorrelationId");
-
-                    b.HasIndex("OverallStatus");
-
-                    b.HasIndex("PaperId");
-
-                    b.HasIndex("PaperVersionId")
-                        .IsUnique();
-
-                    b.ToTable("paper_processing_trackers", (string)null);
-                });
-
             modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperSimilarityCheck", b =>
                 {
                     b.Property<long>("Id")
@@ -1032,25 +789,6 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Paper");
-                });
-
-            modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperProcessingTracker", b =>
-                {
-                    b.HasOne("PublicationQualitySystem.Domain.Entities.Paper", "Paper")
-                        .WithMany()
-                        .HasForeignKey("PaperId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("PublicationQualitySystem.Domain.Entities.PaperVersion", "PaperVersion")
-                        .WithMany()
-                        .HasForeignKey("PaperVersionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Paper");
-
-                    b.Navigation("PaperVersion");
                 });
 
             modelBuilder.Entity("PublicationQualitySystem.Domain.Entities.PaperSimilarityCheck", b =>

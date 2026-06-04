@@ -7,4 +7,5 @@ public class PaperUploadedIntegrationEvent
     public string PdfS3Key { get; set; } = string.Empty;
     public string OriginalFileName { get; set; } = string.Empty;
     public DateTime UploadedAt { get; set; }
+    public string? CorrelationId { get; set; }
 }

@@ -14,7 +14,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Paper> Papers => Set<Paper>();
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
     public DbSet<PaperMetadata> PaperMetadata => Set<PaperMetadata>();
+    public DbSet<PaperSimilarityCheck> PaperSimilarityChecks => Set<PaperSimilarityCheck>();
+    public DbSet<PaperProcessingTracker> PaperProcessingTrackers => Set<PaperProcessingTracker>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -137,6 +140,106 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.PaperId).IsUnique();
         });
 
+        modelBuilder.Entity<PaperSimilarityCheck>(entity =>
+        {
+            entity.ToTable("paper_similarity_checks");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperMetadataId).HasColumnName("paper_metadata_id");
+            entity.Property(x => x.Source).HasColumnName("source").IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.MatchedOpenAlexId).HasColumnName("matched_openalex_id").HasMaxLength(500);
+            entity.Property(x => x.MatchedDoi).HasColumnName("matched_doi").HasMaxLength(255);
+            entity.Property(x => x.MatchedTitle).HasColumnName("matched_title").HasMaxLength(1000);
+            entity.Property(x => x.TitleSimilarity).HasColumnName("title_similarity");
+            entity.Property(x => x.AuthorSimilarity).HasColumnName("author_similarity");
+            entity.Property(x => x.AbstractSimilarity).HasColumnName("abstract_similarity");
+            entity.Property(x => x.ReferenceSimilarity).HasColumnName("reference_similarity");
+            entity.Property(x => x.OverallScore).HasColumnName("overall_score");
+            entity.Property(x => x.RiskLevel)
+                .HasColumnName("risk_level")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.SkipReason).HasColumnName("skip_reason").HasMaxLength(1000);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(x => x.RawJson).HasColumnName("raw_json").HasColumnType("jsonb");
+            entity.Property(x => x.CheckedAt).HasColumnName("checked_at");
+            entity.HasOne(x => x.Paper)
+                .WithMany()
+                .HasForeignKey(x => x.PaperId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperMetadata)
+                .WithMany()
+                .HasForeignKey(x => x.PaperMetadataId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperMetadataId);
+            entity.HasIndex(x => x.Source);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.RiskLevel);
+            entity.HasIndex(x => x.CheckedAt);
+            entity.HasIndex(x => new { x.Source, x.PaperMetadataId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PaperProcessingTracker>(entity =>
+        {
+            entity.ToTable("paper_processing_trackers");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(x => x.OverallStatus).HasColumnName("overall_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.CurrentStep).HasColumnName("current_step").HasConversion<string>().IsRequired().HasMaxLength(100);
+            entity.Property(x => x.ProgressPercent).HasColumnName("progress_percent");
+            entity.Property(x => x.UploadStatus).HasColumnName("upload_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.MarkdownStatus).HasColumnName("markdown_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.MetadataExtractionStatus).HasColumnName("metadata_extraction_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.MetadataQualityStatus).HasColumnName("metadata_quality_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.OpenAlexStatus).HasColumnName("openalex_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.CrossrefStatus).HasColumnName("crossref_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.AiReviewStatus).HasColumnName("ai_review_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.IntegrityScreeningStatus).HasColumnName("integrity_screening_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.PaperUploadedEventId).HasColumnName("paper_uploaded_event_id").HasMaxLength(100);
+            entity.Property(x => x.MarkdownRequestedEventId).HasColumnName("markdown_requested_event_id").HasMaxLength(100);
+            entity.Property(x => x.MarkdownGeneratedEventId).HasColumnName("markdown_generated_event_id").HasMaxLength(100);
+            entity.Property(x => x.MetadataExtractionRequestedEventId).HasColumnName("metadata_extraction_requested_event_id").HasMaxLength(100);
+            entity.Property(x => x.MetadataExtractedEventId).HasColumnName("metadata_extracted_event_id").HasMaxLength(100);
+            entity.Property(x => x.MetadataQualityScoredEventId).HasColumnName("metadata_quality_scored_event_id").HasMaxLength(100);
+            entity.Property(x => x.OpenAlexRequestedEventId).HasColumnName("openalex_requested_event_id").HasMaxLength(100);
+            entity.Property(x => x.OpenAlexCompletedEventId).HasColumnName("openalex_completed_event_id").HasMaxLength(100);
+            entity.Property(x => x.OpenAlexSkippedEventId).HasColumnName("openalex_skipped_event_id").HasMaxLength(100);
+            entity.Property(x => x.LastErrorCode).HasColumnName("last_error_code").HasMaxLength(100);
+            entity.Property(x => x.LastErrorMessage).HasColumnName("last_error_message").HasMaxLength(1000);
+            entity.Property(x => x.LastFailedStep).HasColumnName("last_failed_step").HasConversion<string>().HasMaxLength(100);
+            entity.Property(x => x.ErrorDetailsJson).HasColumnName("error_details_json").HasColumnType("jsonb");
+            entity.Property(x => x.RetryCount).HasColumnName("retry_count");
+            entity.Property(x => x.LastRetryAt).HasColumnName("last_retry_at");
+            entity.Property(x => x.NextRetryAt).HasColumnName("next_retry_at");
+            entity.Property(x => x.StartedAt).HasColumnName("started_at");
+            entity.Property(x => x.UploadCompletedAt).HasColumnName("upload_completed_at");
+            entity.Property(x => x.MarkdownStartedAt).HasColumnName("markdown_started_at");
+            entity.Property(x => x.MarkdownCompletedAt).HasColumnName("markdown_completed_at");
+            entity.Property(x => x.MetadataStartedAt).HasColumnName("metadata_started_at");
+            entity.Property(x => x.MetadataCompletedAt).HasColumnName("metadata_completed_at");
+            entity.Property(x => x.MetadataQualityCompletedAt).HasColumnName("metadata_quality_completed_at");
+            entity.Property(x => x.OpenAlexStartedAt).HasColumnName("openalex_started_at");
+            entity.Property(x => x.OpenAlexCompletedAt).HasColumnName("openalex_completed_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            entity.Property(x => x.FailedAt).HasColumnName("failed_at");
+            entity.Property(x => x.LastUpdatedAt).HasColumnName("last_updated_at");
+            entity.Property(x => x.StepDetailsJson).HasColumnName("step_details_json").HasColumnType("jsonb");
+            entity.Property(x => x.WarningsJson).HasColumnName("warnings_json").HasColumnType("jsonb");
+            entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperVersionId).IsUnique();
+            entity.HasIndex(x => x.CorrelationId);
+            entity.HasIndex(x => x.OverallStatus);
+        });
+
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox_messages");
@@ -153,6 +256,46 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.LastError).HasColumnName("last_error").HasMaxLength(4000);
             entity.Property(x => x.PublishedAt).HasColumnName("published_at");
             entity.HasIndex(x => new { x.Status, x.CreatedAt });
+        });
+
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("audit_logs");
+            entity.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.UploadedFileId).HasColumnName("uploaded_file_id");
+            entity.Property(x => x.UserId).HasColumnName("user_id").HasMaxLength(255);
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").HasMaxLength(100);
+            entity.Property(x => x.Action).HasColumnName("action").IsRequired().HasMaxLength(255);
+            entity.Property(x => x.Step)
+                .HasColumnName("step")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(x => x.Status)
+                .HasColumnName("status")
+                .HasConversion<string>()
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(x => x.Message).HasColumnName("message").HasMaxLength(1000);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(x => x.MetadataJson).HasColumnName("metadata_json").HasColumnType("jsonb");
+            entity.Property(x => x.StartedAt).HasColumnName("started_at");
+            entity.Property(x => x.CompletedAt).HasColumnName("completed_at");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+            entity.Property(x => x.Deleted).HasColumnName("deleted");
+            entity.Property(x => x.CreatedBy).HasColumnName("created_by");
+            entity.Property(x => x.UpdatedBy).HasColumnName("updated_by");
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperVersionId);
+            entity.HasIndex(x => x.UploadedFileId);
+            entity.HasIndex(x => x.UserId);
+            entity.HasIndex(x => x.CorrelationId);
+            entity.HasIndex(x => x.Step);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.CreatedAt);
         });
 
    
