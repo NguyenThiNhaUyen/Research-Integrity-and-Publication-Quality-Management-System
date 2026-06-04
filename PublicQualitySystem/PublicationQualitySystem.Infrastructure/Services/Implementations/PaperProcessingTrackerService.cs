@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using PublicationQualitySystem.Application.DTOs.Processing;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
@@ -31,7 +32,7 @@ public sealed class PaperProcessingTrackerService(
             {
                 PaperId = paperId,
                 PaperVersionId = paperVersionId,
-                CorrelationId = correlationId,
+                CorrelationId = string.IsNullOrWhiteSpace(correlationId) ? Guid.NewGuid().ToString("N") : correlationId,
                 CurrentStage = ProcessingStage.UPLOADED,
                 CurrentStatus = ProcessingStatus.PENDING,
                 OverallStatus = ProcessingStatus.PENDING,
@@ -44,6 +45,11 @@ public sealed class PaperProcessingTrackerService(
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        if (string.IsNullOrWhiteSpace(tracker.CorrelationId))
+        {
+            tracker.CorrelationId = string.IsNullOrWhiteSpace(correlationId) ? Guid.NewGuid().ToString("N") : correlationId;
+        }
+
         tracker.CurrentStage = ProcessingStage.UPLOADED;
         tracker.CurrentStatus = ProcessingStatus.PENDING;
         tracker.OverallStatus = ProcessingStatus.PENDING;
@@ -52,11 +58,10 @@ public sealed class PaperProcessingTrackerService(
 
         AddEvent(
             tracker,
-            eventId: correlationId,
             eventType: "UploadCreated",
             stage: ProcessingStage.UPLOADED,
             status: ProcessingStatus.PENDING,
-            payloadJson: $"{{\"correlationId\":\"{Escape(correlationId)}\"}}",
+            payloadJson: $"{{\"correlationId\":\"{Escape(EnsureCorrelationId(tracker))}\"}}",
             errorMessage: null);
 
         await db.SaveChangesAsync(cancellationToken);
@@ -84,7 +89,7 @@ public sealed class PaperProcessingTrackerService(
             {
                 PaperId = paperId,
                 PaperVersionId = paperVersionId,
-                CorrelationId = eventId ?? Guid.NewGuid().ToString("N"),
+                CorrelationId = CorrelationIdFromPayload(payloadJson) ?? Guid.NewGuid().ToString("N"),
                 CurrentStage = ProcessingStage.UPLOADED,
                 CurrentStatus = ProcessingStatus.PENDING,
                 OverallStatus = ProcessingStatus.PENDING,
@@ -95,11 +100,6 @@ public sealed class PaperProcessingTrackerService(
             };
             db.PaperProcessingTrackers.Add(tracker);
             await db.SaveChangesAsync(cancellationToken);
-        }
-
-        if (!string.IsNullOrWhiteSpace(eventId) && HasEvent(tracker, eventId, eventType))
-        {
-            return await ToResponseAsync(tracker, cancellationToken);
         }
 
         ApplyTrackerStage(tracker, stage, status, eventType, payloadJson, errorMessage, eventId);
@@ -116,7 +116,7 @@ public sealed class PaperProcessingTrackerService(
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        if (HasEvent(tracker, eventId, eventType))
+        if (HasExternalEvent(tracker, eventId, eventType))
         {
             return;
         }
@@ -192,11 +192,10 @@ public sealed class PaperProcessingTrackerService(
         tracker.LastUpdatedAt = DateTime.UtcNow;
         AddEvent(
             tracker,
-            eventId: null,
             eventType: "RetryScheduled",
-            stage,
-            ProcessingStatus.PROCESSING,
-            $"{{\"retryCount\":{retryCount},\"nextRetryAt\":\"{nextRetryAt:O}\"}}",
+            stage: stage,
+            status: ProcessingStatus.PROCESSING,
+            payloadJson: $"{{\"retryCount\":{retryCount},\"nextRetryAt\":\"{nextRetryAt:O}\"}}",
             errorMessage: null);
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -224,7 +223,7 @@ public sealed class PaperProcessingTrackerService(
             UpdateSnapshot(tracker, stage, status, payloadJson);
         }
 
-        AddEvent(tracker, eventId, eventType, stage, status, payloadJson, errorMessage);
+        AddEvent(tracker, eventType, stage, status, AddExternalEventId(payloadJson, eventId), errorMessage);
     }
 
     public async Task RecalculateOverallStatusAsync(long paperVersionId, CancellationToken cancellationToken = default)
@@ -302,11 +301,13 @@ public sealed class PaperProcessingTrackerService(
         throw new AppException(AuditLogErrorCode.Forbidden);
     }
 
-    private static bool HasEvent(PaperProcessingTracker tracker, string eventId, string eventType) =>
+    private static bool HasExternalEvent(PaperProcessingTracker tracker, string externalEventId, string eventType) =>
         tracker.Events.Any(x =>
-            !string.IsNullOrWhiteSpace(x.EventId)
-            && x.EventId == eventId
-            && x.EventType == eventType);
+            x.EventType == eventType
+            && !string.IsNullOrWhiteSpace(x.PayloadJson)
+            && (x.PayloadJson.Contains($"\"eventId\":\"{Escape(externalEventId)}\"", StringComparison.Ordinal)
+                || x.PayloadJson.Contains($"\"EventId\":\"{Escape(externalEventId)}\"", StringComparison.Ordinal)
+                || x.PayloadJson.Contains($"\"integrationEventId\":\"{Escape(externalEventId)}\"", StringComparison.Ordinal)));
 
     private static void UpdateSnapshot(
         PaperProcessingTracker tracker,
@@ -336,20 +337,33 @@ public sealed class PaperProcessingTrackerService(
 
     private static void AddEvent(
         PaperProcessingTracker tracker,
-        string? eventId,
         string eventType,
         ProcessingStage stage,
         ProcessingStatus status,
         string? payloadJson,
         string? errorMessage)
     {
+        var generatedEventId = Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(generatedEventId))
+        {
+            throw new InvalidOperationException("Paper processing event id generation failed.");
+        }
+
+        var sanitizedEventType = Sanitize(eventType, 255);
+        if (string.IsNullOrWhiteSpace(sanitizedEventType))
+        {
+            throw new ArgumentException("EventType is required.", nameof(eventType));
+        }
+
+        var correlationId = EnsureCorrelationId(tracker);
         tracker.Events.Add(new PaperProcessingEvent
         {
             PaperId = tracker.PaperId,
             PaperVersionId = tracker.PaperVersionId,
             TrackerId = tracker.Id,
-            EventId = Sanitize(eventId, 100),
-            EventType = Sanitize(eventType, 255) ?? string.Empty,
+            EventId = generatedEventId,
+            CorrelationId = correlationId,
+            EventType = sanitizedEventType,
             Stage = stage,
             Status = status,
             PayloadJson = SafeJson(payloadJson),
@@ -454,7 +468,103 @@ public sealed class PaperProcessingTrackerService(
         _ => 0
     };
 
-    private static string? SafeJson(string? value) => Sanitize(value, 4000);
+    private static string SafeJson(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "{}";
+        }
+
+        try
+        {
+            using var _ = JsonDocument.Parse(value);
+            return value;
+        }
+        catch (JsonException)
+        {
+            return $"{{\"value\":\"{Escape(Sanitize(value, 3900) ?? string.Empty)}\"}}";
+        }
+    }
+
+    private static string EnsureCorrelationId(PaperProcessingTracker tracker)
+    {
+        if (string.IsNullOrWhiteSpace(tracker.CorrelationId))
+        {
+            tracker.CorrelationId = Guid.NewGuid().ToString("N");
+        }
+
+        var correlationId = Sanitize(tracker.CorrelationId, 100);
+        if (string.IsNullOrWhiteSpace(correlationId))
+        {
+            throw new InvalidOperationException("Paper processing tracker correlation id is required.");
+        }
+
+        tracker.CorrelationId = correlationId;
+        return correlationId;
+    }
+
+    private static string? CorrelationIdFromPayload(string? payloadJson)
+    {
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            foreach (var property in doc.RootElement.EnumerateObject())
+            {
+                if (string.Equals(property.Name, "correlationId", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Sanitize(property.Value.GetString(), 100);
+                }
+            }
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    private static string? AddExternalEventId(string? payloadJson, string? externalEventId)
+    {
+        if (string.IsNullOrWhiteSpace(externalEventId))
+        {
+            return payloadJson;
+        }
+
+        var sanitizedExternalEventId = Sanitize(externalEventId, 100);
+        if (string.IsNullOrWhiteSpace(sanitizedExternalEventId))
+        {
+            return payloadJson;
+        }
+
+        if (string.IsNullOrWhiteSpace(payloadJson))
+        {
+            return $"{{\"integrationEventId\":\"{Escape(sanitizedExternalEventId)}\"}}";
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(payloadJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return $"{{\"integrationEventId\":\"{Escape(sanitizedExternalEventId)}\",\"payload\":{payloadJson}}}";
+            }
+
+            var properties = doc.RootElement.EnumerateObject()
+                .Select(property => $"\"{Escape(property.Name)}\":{property.Value.GetRawText()}")
+                .Append($"\"integrationEventId\":\"{Escape(sanitizedExternalEventId)}\"");
+            return "{" + string.Join(",", properties) + "}";
+        }
+        catch (JsonException)
+        {
+            return $"{{\"integrationEventId\":\"{Escape(sanitizedExternalEventId)}\",\"value\":\"{Escape(Sanitize(payloadJson, 3900) ?? string.Empty)}\"}}";
+        }
+    }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");
 

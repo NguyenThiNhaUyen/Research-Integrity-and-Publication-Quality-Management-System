@@ -269,7 +269,7 @@ public class PaperService(
         await processingTracker.RecordEventPublishedAsync(
             version.Id,
             ProcessingStage.UPLOADED,
-            paperUploadedOutbox.Id.ToString(),
+            integrationEvent.EventId,
             nameof(PaperUploadedIntegrationEvent),
             paperUploadedOutbox.Payload,
             cancellationToken);

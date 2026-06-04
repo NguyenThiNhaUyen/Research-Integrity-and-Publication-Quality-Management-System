@@ -87,13 +87,13 @@ public class PaperProcessingTrackerServiceTests
         {
             Id = 10,
             PaperId = 1,
-            PaperVersionId = 2
+            PaperVersionId = 2,
+            CorrelationId = "corr-1"
         };
 
         InvokePrivateStatic(
             "AddEvent",
             tracker,
-            "evt-1",
             "PaperUploadedIntegrationEvent",
             ProcessingStage.UPLOADED,
             ProcessingStatus.PROCESSING,
@@ -101,7 +101,8 @@ public class PaperProcessingTrackerServiceTests
             null);
 
         var evt = Assert.Single(tracker.Events);
-        Assert.Equal("evt-1", evt.EventId);
+        Assert.True(Guid.TryParseExact(evt.EventId, "N", out _));
+        Assert.Equal("corr-1", evt.CorrelationId);
         Assert.Equal("PaperUploadedIntegrationEvent", evt.EventType);
         Assert.Equal(ProcessingStage.UPLOADED, evt.Stage);
         Assert.Equal(ProcessingStatus.PROCESSING, evt.Status);
@@ -117,13 +118,13 @@ public class PaperProcessingTrackerServiceTests
         {
             Id = 10,
             PaperId = 1,
-            PaperVersionId = 2
+            PaperVersionId = 2,
+            CorrelationId = "upload-1"
         };
 
         InvokePrivateStatic(
             "AddEvent",
             tracker,
-            "upload-1",
             "UploadCreated",
             ProcessingStage.UPLOADED,
             ProcessingStatus.PENDING,
@@ -133,6 +134,94 @@ public class PaperProcessingTrackerServiceTests
         var evt = Assert.Single(tracker.Events);
         Assert.Equal(ProcessingStage.UPLOADED, evt.Stage);
         Assert.Equal(ProcessingStatus.PENDING, evt.Status);
+    }
+
+    [Fact]
+    public void AddEvent_GeneratesUniqueEventIdsAndKeepsWorkflowCorrelation()
+    {
+        var tracker = new PaperProcessingTracker
+        {
+            Id = 10,
+            PaperId = 1,
+            PaperVersionId = 2,
+            CorrelationId = "corr-1"
+        };
+
+        InvokePrivateStatic(
+            "AddEvent",
+            tracker,
+            "FirstEvent",
+            ProcessingStage.UPLOADED,
+            ProcessingStatus.PROCESSING,
+            null,
+            null);
+        InvokePrivateStatic(
+            "AddEvent",
+            tracker,
+            "SecondEvent",
+            ProcessingStage.UPLOADED,
+            ProcessingStatus.PROCESSING,
+            null,
+            null);
+
+        Assert.Equal(2, tracker.Events.Count);
+        Assert.All(tracker.Events, evt =>
+        {
+            Assert.True(Guid.TryParseExact(evt.EventId, "N", out _));
+            Assert.Equal("corr-1", evt.CorrelationId);
+            Assert.Equal("{}", evt.PayloadJson);
+            Assert.NotEqual(evt.TrackerId.ToString(), evt.EventId);
+            Assert.NotEqual(evt.PaperId.ToString(), evt.EventId);
+            Assert.NotEqual(evt.PaperVersionId.ToString(), evt.EventId);
+        });
+        Assert.Equal(2, tracker.Events.Select(x => x.EventId).Distinct().Count());
+    }
+
+    [Fact]
+    public void AddEvent_GeneratesTrackerCorrelationWhenMissing()
+    {
+        var tracker = new PaperProcessingTracker
+        {
+            Id = 10,
+            PaperId = 1,
+            PaperVersionId = 2
+        };
+
+        InvokePrivateStatic(
+            "AddEvent",
+            tracker,
+            "InternalEvent",
+            ProcessingStage.UPLOADED,
+            ProcessingStatus.PROCESSING,
+            null,
+            null);
+
+        var evt = Assert.Single(tracker.Events);
+        Assert.False(string.IsNullOrWhiteSpace(tracker.CorrelationId));
+        Assert.Equal(tracker.CorrelationId, evt.CorrelationId);
+    }
+
+    [Fact]
+    public void AddEvent_BlankEventTypeThrows()
+    {
+        var tracker = new PaperProcessingTracker
+        {
+            Id = 10,
+            PaperId = 1,
+            PaperVersionId = 2,
+            CorrelationId = "corr-1"
+        };
+
+        var exception = Assert.Throws<TargetInvocationException>(() => InvokePrivateStatic(
+            "AddEvent",
+            tracker,
+            " ",
+            ProcessingStage.UPLOADED,
+            ProcessingStatus.PROCESSING,
+            null,
+            null));
+
+        Assert.IsType<ArgumentException>(exception.InnerException);
     }
 
     [Fact]
@@ -162,6 +251,34 @@ public class PaperProcessingTrackerServiceTests
             .ToArray();
 
         Assert.Empty(invalidShadowProperties);
+    }
+
+    [Fact]
+    public void EfModel_PaperProcessingEventIdentityIsRequiredAndUnique()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql("Host=localhost;Database=model_validation;Username=model_validation;Password=model_validation")
+            .Options;
+        using var db = new ApplicationDbContext(options);
+
+        var entityType = db.Model.FindEntityType(typeof(PaperProcessingEvent));
+        Assert.NotNull(entityType);
+
+        var eventId = entityType!.FindProperty(nameof(PaperProcessingEvent.EventId));
+        var correlationId = entityType.FindProperty(nameof(PaperProcessingEvent.CorrelationId));
+        var payloadJson = entityType.FindProperty(nameof(PaperProcessingEvent.PayloadJson));
+        var index = entityType.GetIndexes()
+            .SingleOrDefault(x => x.GetDatabaseName() == "IX_PaperProcessingEvents_EventId");
+
+        Assert.NotNull(eventId);
+        Assert.False(eventId!.IsNullable);
+        Assert.NotNull(correlationId);
+        Assert.False(correlationId!.IsNullable);
+        Assert.NotNull(payloadJson);
+        Assert.False(payloadJson!.IsNullable);
+        Assert.Equal("'{}'::jsonb", payloadJson.GetDefaultValueSql());
+        Assert.NotNull(index);
+        Assert.True(index!.IsUnique);
     }
 
     private static bool IsAllowedShadowProperty(IEntityType entityType, IProperty property)

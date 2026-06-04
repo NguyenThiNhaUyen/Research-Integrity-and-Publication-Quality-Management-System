@@ -213,7 +213,7 @@ public sealed class PaperMetadataBackgroundService(
             await processingTracker.RecordEventPublishedAsync(
                 version.Id,
                 ProcessingStage.QUALITY_SCORING_COMPLETED,
-                metadataQualityScoredEvent.EventId.ToString(),
+                metadataQualityScoredEvent.EventId,
                 nameof(MetadataQualityScoredIntegrationEvent),
                 JsonSerializer.Serialize(metadataQualityScoredEvent, JsonOptions),
                 cancellationToken);

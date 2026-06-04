@@ -216,11 +216,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.PaperId).HasColumnName("paper_id");
             entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
             entity.Property(x => x.TrackerId).HasColumnName("tracker_id");
-            entity.Property(x => x.EventId).HasColumnName("event_id").HasMaxLength(100);
+            entity.Property(x => x.EventId).HasColumnName("event_id").IsRequired().HasMaxLength(100);
+            entity.Property(x => x.CorrelationId).HasColumnName("correlation_id").IsRequired().HasMaxLength(100);
             entity.Property(x => x.EventType).HasColumnName("event_type").IsRequired().HasMaxLength(255);
             entity.Property(x => x.Stage).HasColumnName("stage").HasConversion<string>().IsRequired().HasMaxLength(100);
             entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired().HasMaxLength(50);
-            entity.Property(x => x.PayloadJson).HasColumnName("payload_json").HasColumnType("jsonb");
+            entity.Property(x => x.PayloadJson).HasColumnName("payload_json").HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
             entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
             entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.Cascade);
@@ -228,7 +229,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.PaperId);
             entity.HasIndex(x => x.PaperVersionId);
             entity.HasIndex(x => x.TrackerId);
-            entity.HasIndex(x => x.EventId);
+            entity.HasIndex(x => x.EventId).IsUnique().HasDatabaseName("IX_PaperProcessingEvents_EventId");
+            entity.HasIndex(x => x.CorrelationId);
             entity.HasIndex(x => x.EventType);
             entity.HasIndex(x => x.Stage);
             entity.HasIndex(x => x.Status);

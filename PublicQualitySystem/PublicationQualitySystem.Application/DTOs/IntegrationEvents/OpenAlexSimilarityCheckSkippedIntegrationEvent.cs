@@ -2,7 +2,7 @@ namespace PublicationQualitySystem.Application.DTOs.IntegrationEvents;
 
 public class OpenAlexSimilarityCheckSkippedIntegrationEvent
 {
-    public Guid EventId { get; set; } = Guid.NewGuid();
+    public string EventId { get; set; } = Guid.NewGuid().ToString("N");
     public long PaperId { get; set; }
     public long PaperVersionId { get; set; }
     public long PaperMetadataId { get; set; }

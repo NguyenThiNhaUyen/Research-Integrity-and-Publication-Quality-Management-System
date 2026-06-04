@@ -148,7 +148,7 @@ public sealed class OpenAlexGateKafkaConsumerBackgroundService(
             await processingTracker.RecordEventPublishedAsync(
                 message.PaperVersionId,
                 ProcessingStage.OPENALEX_REQUESTED,
-                requested.EventId.ToString(),
+                requested.EventId,
                 nameof(OpenAlexSimilarityCheckRequestedIntegrationEvent),
                 JsonSerializer.Serialize(requested, JsonOptions),
                 cancellationToken);
@@ -198,7 +198,7 @@ public sealed class OpenAlexGateKafkaConsumerBackgroundService(
         await processingTracker.RecordEventPublishedAsync(
             message.PaperVersionId,
             ProcessingStage.OPENALEX_COMPLETED,
-            skipped.EventId.ToString(),
+            skipped.EventId,
             nameof(OpenAlexSimilarityCheckSkippedIntegrationEvent),
             JsonSerializer.Serialize(skipped, JsonOptions),
             cancellationToken);

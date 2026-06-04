@@ -133,7 +133,7 @@ public sealed class KafkaOutboxPublisherBackgroundService(
             await tracker.RecordEventPublishedAsync(
                 paperVersionId,
                 ResolveStage(outbox.Type),
-                TryGetString(outbox.Payload, "EventId") ?? outbox.Id.ToString(),
+                TryGetString(outbox.Payload, "EventId") ?? Guid.NewGuid().ToString("N"),
                 $"{outbox.Type}PublishedToKafka",
                 outbox.Payload,
                 cancellationToken);

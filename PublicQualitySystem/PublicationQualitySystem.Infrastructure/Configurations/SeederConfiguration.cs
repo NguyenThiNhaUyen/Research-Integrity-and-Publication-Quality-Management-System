@@ -93,7 +93,18 @@ public static class SeederConfiguration
         }
         else
         {
-            foreach (var columnName in new[] { "tracker_id", "paper_id", "paper_version_id", "event_type", "stage", "status" })
+            foreach (var columnName in new[]
+                     {
+                         "tracker_id",
+                         "paper_id",
+                         "paper_version_id",
+                         "event_id",
+                         "correlation_id",
+                         "event_type",
+                         "stage",
+                         "status",
+                         "payload_json"
+                     })
             {
                 if (!await HasColumnAsync(db, "paper_processing_events", columnName))
                 {
@@ -110,7 +121,7 @@ public static class SeederConfiguration
         throw new InvalidOperationException(
             "Database schema mismatch detected for paper processing workflow tracking. " +
             $"Missing required objects: {string.Join(", ", missingObjects)}. " +
-            "Apply migration RefactorPaperProcessingTrackerToWorkflowEvents before running uploads. " +
+            "Apply migrations RefactorPaperProcessingTrackerToWorkflowEvents and NormalizePaperProcessingEvents before running uploads. " +
             "Command: dotnet ef database update --project PublicQualitySystem\\PublicationQualitySystem.Infrastructure " +
             "--startup-project PublicQualitySystem\\PublicationQualitySystem.Api");
     }
