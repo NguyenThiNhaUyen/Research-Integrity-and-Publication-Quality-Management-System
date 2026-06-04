@@ -11,41 +11,57 @@ public interface IPaperProcessingTrackerService
         string correlationId,
         CancellationToken cancellationToken = default);
 
-    Task MarkEventPublishedAsync(
+    Task<PaperProcessingTrackerResponse> UpdateTrackerStageAsync(
+        long paperId,
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string eventType,
+        string? payloadJson = null,
+        string? errorMessage = null,
+        string? eventId = null,
+        CancellationToken cancellationToken = default);
+
+    Task RecordEventPublishedAsync(
+        long paperVersionId,
+        ProcessingStage stage,
         string eventId,
-        string topicName,
+        string eventType,
+        string? payloadJson = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkStepStartedAsync(
+    Task RecordStepStartedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        string eventType,
+        string? payloadJson = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkStepCompletedAsync(
+    Task RecordStepCompletedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        string eventType,
         string? detailsJson = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkStepFailedAsync(
+    Task RecordStepFailedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
-        string? errorCode,
+        ProcessingStage stage,
+        string eventType,
         string errorMessage,
         string? errorDetailsJson = null,
         CancellationToken cancellationToken = default);
 
-    Task MarkStepSkippedAsync(
+    Task RecordStepSkippedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        string eventType,
         string reason,
         CancellationToken cancellationToken = default);
 
     Task ScheduleRetryAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
         int retryCount,
         DateTime nextRetryAt,
         CancellationToken cancellationToken = default);

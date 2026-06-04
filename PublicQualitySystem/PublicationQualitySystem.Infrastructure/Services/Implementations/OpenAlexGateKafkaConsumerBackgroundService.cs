@@ -145,11 +145,12 @@ public sealed class OpenAlexGateKafkaConsumerBackgroundService(
             };
             AddOutbox(db, options.Value.OpenAlexSimilarityRequestedTopic, message.PaperId.ToString(), requested);
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkEventPublishedAsync(
+            await processingTracker.RecordEventPublishedAsync(
                 message.PaperVersionId,
-                PaperProcessingStep.OpenAlexSimilarityCheck,
+                ProcessingStage.OPENALEX_REQUESTED,
                 requested.EventId.ToString(),
-                options.Value.OpenAlexSimilarityRequestedTopic,
+                nameof(OpenAlexSimilarityCheckRequestedIntegrationEvent),
+                JsonSerializer.Serialize(requested, JsonOptions),
                 cancellationToken);
 
             logger.LogInformation(
@@ -188,16 +189,24 @@ public sealed class OpenAlexGateKafkaConsumerBackgroundService(
         };
         AddOutbox(db, options.Value.OpenAlexSimilaritySkippedTopic, message.PaperId.ToString(), skipped);
         await db.SaveChangesAsync(cancellationToken);
-        await processingTracker.MarkStepSkippedAsync(
+        await processingTracker.RecordStepSkippedAsync(
             message.PaperVersionId,
-            PaperProcessingStep.OpenAlexSimilarityCheck,
+            ProcessingStage.OPENALEX_COMPLETED,
+            "OpenAlexSimilarityCheckSkipped",
             GateFailedReason,
             cancellationToken);
-        await processingTracker.MarkEventPublishedAsync(
+        await processingTracker.RecordEventPublishedAsync(
             message.PaperVersionId,
-            PaperProcessingStep.OpenAlexSimilarityCheck,
+            ProcessingStage.OPENALEX_COMPLETED,
             skipped.EventId.ToString(),
-            options.Value.OpenAlexSimilaritySkippedTopic,
+            nameof(OpenAlexSimilarityCheckSkippedIntegrationEvent),
+            JsonSerializer.Serialize(skipped, JsonOptions),
+            cancellationToken);
+        await processingTracker.RecordStepCompletedAsync(
+            message.PaperVersionId,
+            ProcessingStage.COMPLETED,
+            "PaperProcessingCompleted",
+            "{\"reason\":\"OpenAlex similarity check skipped by metadata quality gate.\"}",
             cancellationToken);
 
         logger.LogWarning(

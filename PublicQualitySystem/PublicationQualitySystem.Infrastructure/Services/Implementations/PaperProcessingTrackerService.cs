@@ -20,9 +20,10 @@ public sealed class PaperProcessingTrackerService(
         string correlationId,
         CancellationToken cancellationToken = default)
     {
-        var tracker = await db.PaperProcessingTrackers
-            .FirstOrDefaultAsync(x => x.PaperVersionId == paperVersionId, cancellationToken);
         var now = DateTime.UtcNow;
+        var tracker = await db.PaperProcessingTrackers
+            .Include(x => x.Events)
+            .FirstOrDefaultAsync(x => x.PaperVersionId == paperVersionId, cancellationToken);
 
         if (tracker is null)
         {
@@ -31,137 +32,212 @@ public sealed class PaperProcessingTrackerService(
                 PaperId = paperId,
                 PaperVersionId = paperVersionId,
                 CorrelationId = correlationId,
-                StartedAt = now
+                CurrentStage = ProcessingStage.UPLOADED,
+                CurrentStatus = ProcessingStatus.PENDING,
+                OverallStatus = ProcessingStatus.PENDING,
+                ProgressPercent = 0,
+                RetryCount = 0,
+                StartedAt = now,
+                LastUpdatedAt = now
             };
             db.PaperProcessingTrackers.Add(tracker);
+            ApplyLegacyDefaults(tracker);
+            await db.SaveChangesAsync(cancellationToken);
         }
 
-        tracker.OverallStatus = ProcessingOverallStatus.Processing;
-        tracker.CurrentStep = PaperProcessingStep.Upload;
-        tracker.UploadStatus = ProcessingStepStatus.Completed;
-        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, 10);
-        tracker.UploadCompletedAt ??= now;
+        tracker.CurrentStage = ProcessingStage.UPLOADED;
+        tracker.CurrentStatus = ProcessingStatus.PENDING;
+        tracker.OverallStatus = ProcessingStatus.PENDING;
+        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(ProcessingStage.UPLOADED));
         tracker.LastUpdatedAt = now;
+        ApplyLegacyUpdates(tracker, ProcessingStage.UPLOADED, ProcessingStatus.PENDING, "UploadCreated");
+
+        AddEvent(
+            tracker,
+            eventId: correlationId,
+            eventType: "UploadCreated",
+            stage: ProcessingStage.UPLOADED,
+            status: ProcessingStatus.PENDING,
+            payloadJson: $"{{\"correlationId\":\"{Escape(correlationId)}\"}}",
+            errorMessage: null);
 
         await db.SaveChangesAsync(cancellationToken);
-        return ToResponse(tracker);
+        return await ToResponseAsync(tracker, cancellationToken);
     }
 
-    public async Task MarkEventPublishedAsync(
+    public async Task<PaperProcessingTrackerResponse> UpdateTrackerStageAsync(
+        long paperId,
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string eventType,
+        string? payloadJson = null,
+        string? errorMessage = null,
+        string? eventId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tracker = await db.PaperProcessingTrackers
+            .Include(x => x.Events)
+            .FirstOrDefaultAsync(x => x.PaperVersionId == paperVersionId, cancellationToken);
+
+        if (tracker is null)
+        {
+            tracker = new PaperProcessingTracker
+            {
+                PaperId = paperId,
+                PaperVersionId = paperVersionId,
+                CorrelationId = eventId ?? Guid.NewGuid().ToString("N"),
+                CurrentStage = ProcessingStage.UPLOADED,
+                CurrentStatus = ProcessingStatus.PENDING,
+                OverallStatus = ProcessingStatus.PENDING,
+                ProgressPercent = 0,
+                RetryCount = 0,
+                StartedAt = DateTime.UtcNow,
+                LastUpdatedAt = DateTime.UtcNow
+            };
+            db.PaperProcessingTrackers.Add(tracker);
+            ApplyLegacyDefaults(tracker);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(eventId) && HasEvent(tracker, eventId, eventType))
+        {
+            return await ToResponseAsync(tracker, cancellationToken);
+        }
+
+        ApplyTrackerStage(tracker, stage, status, eventType, payloadJson, errorMessage, eventId);
+        await db.SaveChangesAsync(cancellationToken);
+        return await ToResponseAsync(tracker, cancellationToken);
+    }
+
+    public async Task RecordEventPublishedAsync(
+        long paperVersionId,
+        ProcessingStage stage,
         string eventId,
-        string topicName,
+        string eventType,
+        string? payloadJson = null,
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        SetEventIdIfEmptyOrSame(tracker, step, eventId, topicName);
-        SetStatusIfNotCompleted(tracker, step, ProcessingStepStatus.EventPublished);
-        tracker.CurrentStep = step;
-        tracker.StepDetailsJson = SafeJson($"{{\"lastEventId\":\"{Escape(eventId)}\",\"topic\":\"{Escape(topicName)}\"}}");
-        Touch(tracker);
-        Recalculate(tracker);
-        await db.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task MarkStepStartedAsync(long paperVersionId, PaperProcessingStep step, CancellationToken cancellationToken = default)
-    {
-        var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        if (GetStatus(tracker, step) == ProcessingStepStatus.Completed)
+        if (HasEvent(tracker, eventId, eventType))
         {
             return;
         }
 
-        SetStatus(tracker, step, ProcessingStepStatus.Processing);
-        SetStartedAt(tracker, step, DateTime.UtcNow);
-        tracker.CurrentStep = step;
-        Touch(tracker);
-        Recalculate(tracker);
+        ApplyTrackerStage(tracker, stage, ProcessingStatus.PROCESSING, eventType, payloadJson, errorMessage: null, eventId);
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task MarkStepCompletedAsync(
+    public async Task RecordStepStartedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        string eventType,
+        string? payloadJson = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
+        ApplyTrackerStage(tracker, stage, ProcessingStatus.PROCESSING, eventType, payloadJson, errorMessage: null, eventId: null);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RecordStepCompletedAsync(
+        long paperVersionId,
+        ProcessingStage stage,
+        string eventType,
         string? detailsJson = null,
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        SetStatus(tracker, step, ProcessingStepStatus.Completed);
-        SetCompletedAt(tracker, step, DateTime.UtcNow);
-        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(step, ProcessingStepStatus.Completed));
-        tracker.StepDetailsJson = SafeJson(detailsJson);
-        tracker.CurrentStep = ResolveNextStep(step);
-        Touch(tracker);
-        Recalculate(tracker);
+        ApplyTrackerStage(tracker, stage, ProcessingStatus.COMPLETED, eventType, detailsJson, errorMessage: null, eventId: null);
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task MarkStepFailedAsync(
+    public async Task RecordStepFailedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
-        string? errorCode,
+        ProcessingStage stage,
+        string eventType,
         string errorMessage,
         string? errorDetailsJson = null,
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        SetStatus(tracker, step, ProcessingStepStatus.Failed);
-        tracker.LastFailedStep = step;
-        tracker.LastErrorCode = errorCode;
-        tracker.LastErrorMessage = Sanitize(errorMessage, 1000);
-        tracker.ErrorDetailsJson = SafeJson(errorDetailsJson);
-        tracker.FailedAt = DateTime.UtcNow;
-        tracker.CurrentStep = step;
-        Touch(tracker);
-        Recalculate(tracker);
+        var sanitizedError = Sanitize(errorMessage, 1000);
+
+        ApplyTrackerStage(tracker, stage, ProcessingStatus.FAILED, eventType, errorDetailsJson, sanitizedError, eventId: null);
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task MarkStepSkippedAsync(
+    public async Task RecordStepSkippedAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
+        string eventType,
         string reason,
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        if (GetStatus(tracker, step) != ProcessingStepStatus.Completed)
-        {
-            SetStatus(tracker, step, ProcessingStepStatus.Skipped);
-        }
-
-        SetCompletedAt(tracker, step, DateTime.UtcNow);
-        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(step, ProcessingStepStatus.Skipped));
-        tracker.WarningsJson = SafeJson($"[\"{Escape(reason)}\"]");
-        tracker.CurrentStep = ResolveNextStep(step);
-        Touch(tracker);
-        Recalculate(tracker);
+        var payload = $"{{\"reason\":\"{Escape(reason)}\"}}";
+        ApplyTrackerStage(tracker, stage, ProcessingStatus.COMPLETED, eventType, payload, errorMessage: null, eventId: null);
         await db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task ScheduleRetryAsync(
         long paperVersionId,
-        PaperProcessingStep step,
+        ProcessingStage stage,
         int retryCount,
         DateTime nextRetryAt,
         CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        SetStatusIfNotCompleted(tracker, step, ProcessingStepStatus.RetryScheduled);
+        tracker.CurrentStage = stage;
+        tracker.CurrentStatus = ProcessingStatus.PROCESSING;
+        tracker.OverallStatus = ProcessingStatus.PROCESSING;
         tracker.RetryCount = retryCount;
-        tracker.LastRetryAt = DateTime.UtcNow;
-        tracker.NextRetryAt = nextRetryAt;
-        tracker.CurrentStep = step;
-        Touch(tracker);
-        Recalculate(tracker);
+        tracker.LastUpdatedAt = DateTime.UtcNow;
+        ApplyLegacyUpdates(tracker, stage, ProcessingStatus.PROCESSING, "RetryScheduled");
+        AddEvent(
+            tracker,
+            eventId: null,
+            eventType: "RetryScheduled",
+            stage,
+            ProcessingStatus.PROCESSING,
+            $"{{\"retryCount\":{retryCount},\"nextRetryAt\":\"{nextRetryAt:O}\"}}",
+            errorMessage: null);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private void ApplyTrackerStage(
+        PaperProcessingTracker tracker,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string eventType,
+        string? payloadJson,
+        string? errorMessage,
+        string? eventId)
+    {
+        if (status == ProcessingStatus.FAILED)
+        {
+            tracker.CurrentStage = ProcessingStage.FAILED;
+            tracker.CurrentStatus = ProcessingStatus.FAILED;
+            tracker.OverallStatus = ProcessingStatus.FAILED;
+            tracker.LastError = Sanitize(errorMessage ?? payloadJson, 1000);
+            tracker.LastUpdatedAt = DateTime.UtcNow;
+            tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(stage));
+        }
+        else
+        {
+            UpdateSnapshot(tracker, stage, status, payloadJson);
+        }
+
+        ApplyLegacyUpdates(tracker, stage, status, eventType);
+        AddEvent(tracker, eventId, eventType, stage, status, payloadJson, errorMessage);
     }
 
     public async Task RecalculateOverallStatusAsync(long paperVersionId, CancellationToken cancellationToken = default)
     {
         var tracker = await GetTrackerAsync(paperVersionId, cancellationToken);
-        Recalculate(tracker);
-        Touch(tracker);
+        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(tracker.CurrentStage));
+        tracker.OverallStatus = tracker.CurrentStatus;
+        tracker.LastUpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
     }
 
@@ -177,7 +253,7 @@ public sealed class PaperProcessingTrackerService(
             throw new AppException(AuditLogErrorCode.NotFound);
         }
 
-        return ToResponse(tracker);
+        return await ToResponseAsync(tracker, cancellationToken);
     }
 
     public async Task<PaperProcessingTrackerResponse> GetByPaperVersionIdAsync(long paperVersionId, CancellationToken cancellationToken = default)
@@ -191,12 +267,13 @@ public sealed class PaperProcessingTrackerService(
         }
 
         await EnsureCanViewPaperAsync(tracker.PaperId, cancellationToken);
-        return ToResponse(tracker);
+        return await ToResponseAsync(tracker, cancellationToken);
     }
 
     private async Task<PaperProcessingTracker> GetTrackerAsync(long paperVersionId, CancellationToken cancellationToken)
     {
         var tracker = await db.PaperProcessingTrackers
+            .Include(x => x.Events)
             .FirstOrDefaultAsync(x => x.PaperVersionId == paperVersionId, cancellationToken);
         if (tracker is null)
         {
@@ -230,185 +307,293 @@ public sealed class PaperProcessingTrackerService(
         throw new AppException(AuditLogErrorCode.Forbidden);
     }
 
-    private static void Recalculate(PaperProcessingTracker tracker)
+    private static bool HasEvent(PaperProcessingTracker tracker, string eventId, string eventType) =>
+        tracker.Events.Any(x =>
+            !string.IsNullOrWhiteSpace(x.EventId)
+            && x.EventId == eventId
+            && x.EventType == eventType);
+
+    private void ApplyLegacyDefaults(PaperProcessingTracker tracker)
     {
-        if (tracker.UploadStatus == ProcessingStepStatus.Failed
-            || tracker.MetadataExtractionStatus == ProcessingStepStatus.Failed)
+        var entry = db.Entry(tracker);
+        entry.Property("CurrentStep").CurrentValue = "Upload";
+        entry.Property("UploadStatus").CurrentValue = "Completed";
+        entry.Property("MarkdownStatus").CurrentValue = "NotStarted";
+        entry.Property("MetadataExtractionStatus").CurrentValue = "NotStarted";
+        entry.Property("MetadataQualityStatus").CurrentValue = "NotStarted";
+        entry.Property("OpenAlexStatus").CurrentValue = "NotStarted";
+        entry.Property("CrossrefStatus").CurrentValue = "NotStarted";
+        entry.Property("AiReviewStatus").CurrentValue = "NotStarted";
+        entry.Property("IntegrityScreeningStatus").CurrentValue = "NotStarted";
+    }
+
+    private void ApplyLegacyUpdates(
+        PaperProcessingTracker tracker,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string eventType)
+    {
+        var entry = db.Entry(tracker);
+        foreach (var update in LegacyStatusUpdatesFor(stage, status, eventType))
         {
-            tracker.OverallStatus = ProcessingOverallStatus.Failed;
+            if (update.Key == "CurrentStep")
+            {
+                var currentStep = entry.Property(update.Key).CurrentValue as string;
+                if (string.Equals(currentStep, "Completed", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(update.Value, "Completed", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                entry.Property(update.Key).CurrentValue = update.Value;
+                continue;
+            }
+
+            var property = entry.Property(update.Key);
+            var current = property.CurrentValue as string;
+            if (string.Equals(current, "Completed", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(update.Value, "Processing", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            property.CurrentValue = update.Value;
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> LegacyStatusUpdatesFor(
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string eventType)
+    {
+        var updates = new Dictionary<string, string>(StringComparer.Ordinal);
+        var normalizedEventType = eventType ?? string.Empty;
+
+        if (stage == ProcessingStage.COMPLETED && status == ProcessingStatus.COMPLETED)
+        {
+            updates["CurrentStep"] = "Completed";
+            return updates;
+        }
+
+        if (status == ProcessingStatus.FAILED)
+        {
+            updates["CurrentStep"] = "Failed";
+        }
+        else if (stage != ProcessingStage.UPLOADED)
+        {
+            updates["CurrentStep"] = NameFor(stage);
+        }
+
+        if (stage == ProcessingStage.UPLOADED || normalizedEventType.Contains("Upload", StringComparison.OrdinalIgnoreCase))
+        {
+            updates["CurrentStep"] = "Upload";
+            updates["UploadStatus"] = status == ProcessingStatus.FAILED ? "Failed" : "Completed";
+        }
+
+        ApplyDomainStatus(updates, "MarkdownStatus", IsOcrEvent(stage, normalizedEventType), status, normalizedEventType);
+        ApplyDomainStatus(updates, "MetadataExtractionStatus", IsMetadataEvent(stage, normalizedEventType), status, normalizedEventType);
+        ApplyDomainStatus(updates, "CrossrefStatus", IsCrossrefEvent(normalizedEventType), status, normalizedEventType);
+        ApplyDomainStatus(updates, "MetadataQualityStatus", IsQualityEvent(stage, normalizedEventType), status, normalizedEventType);
+        ApplyDomainStatus(updates, "OpenAlexStatus", IsOpenAlexEvent(stage, normalizedEventType), status, normalizedEventType);
+
+        return updates;
+    }
+
+    private static void ApplyDomainStatus(
+        Dictionary<string, string> updates,
+        string propertyName,
+        bool applies,
+        ProcessingStatus status,
+        string eventType)
+    {
+        if (!applies)
+        {
             return;
         }
 
-        if (tracker.MarkdownStatus == ProcessingStepStatus.Failed
-            || tracker.CrossrefStatus == ProcessingStepStatus.Failed
-            || tracker.OpenAlexStatus == ProcessingStepStatus.Failed
-            || tracker.AiReviewStatus == ProcessingStepStatus.Failed
-            || tracker.IntegrityScreeningStatus == ProcessingStepStatus.Failed)
+        if (eventType.Contains("Skipped", StringComparison.OrdinalIgnoreCase))
         {
-            tracker.OverallStatus = ProcessingOverallStatus.PartiallyCompleted;
+            updates[propertyName] = "Skipped";
             return;
         }
 
-        if (tracker.UploadStatus == ProcessingStepStatus.Completed
-            && tracker.MetadataExtractionStatus == ProcessingStepStatus.Completed
-            && tracker.MetadataQualityStatus == ProcessingStepStatus.Completed
-            && tracker.OpenAlexStatus is ProcessingStepStatus.Completed or ProcessingStepStatus.Skipped)
+        updates[propertyName] = status switch
         {
-            tracker.OverallStatus = ProcessingOverallStatus.Completed;
+            ProcessingStatus.FAILED => "Failed",
+            ProcessingStatus.COMPLETED => "Completed",
+            ProcessingStatus.PROCESSING => "Processing",
+            _ => "NotStarted"
+        };
+    }
+
+    private static bool IsOcrEvent(ProcessingStage stage, string eventType) =>
+        stage is ProcessingStage.OCR_REQUESTED or ProcessingStage.OCR_COMPLETED
+        || eventType.Contains("Nougat", StringComparison.OrdinalIgnoreCase)
+        || eventType.Contains("Markdown", StringComparison.OrdinalIgnoreCase)
+        || eventType.Contains("Ocr", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsMetadataEvent(ProcessingStage stage, string eventType) =>
+        stage is ProcessingStage.METADATA_REQUESTED or ProcessingStage.METADATA_COMPLETED
+        || eventType.Contains("Grobid", StringComparison.OrdinalIgnoreCase)
+        || eventType.Contains("MetadataExtraction", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsCrossrefEvent(string eventType) =>
+        eventType.Contains("Crossref", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsQualityEvent(ProcessingStage stage, string eventType) =>
+        stage is ProcessingStage.QUALITY_SCORING_REQUESTED or ProcessingStage.QUALITY_SCORING_COMPLETED
+        || eventType.Contains("MetadataQuality", StringComparison.OrdinalIgnoreCase)
+        || eventType.Contains("QualityScoring", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOpenAlexEvent(ProcessingStage stage, string eventType) =>
+        stage is ProcessingStage.OPENALEX_REQUESTED or ProcessingStage.OPENALEX_COMPLETED
+        || eventType.Contains("OpenAlex", StringComparison.OrdinalIgnoreCase);
+
+    private static void UpdateSnapshot(
+        PaperProcessingTracker tracker,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string? detailsJson)
+    {
+        if (tracker.CurrentStatus == ProcessingStatus.COMPLETED
+            && status == ProcessingStatus.PROCESSING
+            && ProgressFor(stage) <= tracker.ProgressPercent)
+        {
+            return;
+        }
+
+        tracker.CurrentStage = stage;
+        tracker.CurrentStatus = status;
+        tracker.OverallStatus = status;
+        tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, ProgressFor(stage));
+        tracker.LastUpdatedAt = DateTime.UtcNow;
+        tracker.LastError = status == ProcessingStatus.FAILED ? Sanitize(detailsJson, 1000) : tracker.LastError;
+        if (stage == ProcessingStage.COMPLETED && status == ProcessingStatus.COMPLETED)
+        {
             tracker.CompletedAt ??= DateTime.UtcNow;
-            tracker.ProgressPercent = Math.Max(tracker.ProgressPercent, 100);
-            return;
+            tracker.ProgressPercent = 100;
         }
-
-        tracker.OverallStatus = tracker.UploadStatus == ProcessingStepStatus.NotStarted
-            ? ProcessingOverallStatus.Pending
-            : ProcessingOverallStatus.Processing;
     }
 
-    private static void SetEventIdIfEmptyOrSame(PaperProcessingTracker tracker, PaperProcessingStep step, string eventId, string topicName)
+    private static void AddEvent(
+        PaperProcessingTracker tracker,
+        string? eventId,
+        string eventType,
+        ProcessingStage stage,
+        ProcessingStatus status,
+        string? payloadJson,
+        string? errorMessage)
     {
-        switch (step)
+        tracker.Events.Add(new PaperProcessingEvent
         {
-            case PaperProcessingStep.Upload:
-                tracker.PaperUploadedEventId ??= eventId;
-                break;
-            case PaperProcessingStep.MarkdownConversion:
-                tracker.MarkdownRequestedEventId ??= eventId;
-                break;
-            case PaperProcessingStep.MetadataExtraction:
-                tracker.MetadataExtractionRequestedEventId ??= eventId;
-                break;
-            case PaperProcessingStep.MetadataQualityScoring:
-                tracker.MetadataQualityScoredEventId ??= eventId;
-                break;
-            case PaperProcessingStep.OpenAlexSimilarityCheck:
-                if (topicName.Contains("skipped", StringComparison.OrdinalIgnoreCase))
-                {
-                    tracker.OpenAlexSkippedEventId ??= eventId;
-                }
-                else
-                {
-                    tracker.OpenAlexRequestedEventId ??= eventId;
-                }
-                break;
-            default:
-                break;
-        }
+            PaperId = tracker.PaperId,
+            PaperVersionId = tracker.PaperVersionId,
+            TrackerId = tracker.Id,
+            EventId = Sanitize(eventId, 100),
+            EventType = Sanitize(eventType, 255) ?? string.Empty,
+            Stage = stage,
+            Status = status,
+            PayloadJson = SafeJson(payloadJson),
+            ErrorMessage = Sanitize(errorMessage, 4000)
+        });
     }
 
-    private static ProcessingStepStatus GetStatus(PaperProcessingTracker tracker, PaperProcessingStep step) => step switch
+    private async Task<PaperProcessingTrackerResponse> ToResponseAsync(
+        PaperProcessingTracker tracker,
+        CancellationToken cancellationToken)
     {
-        PaperProcessingStep.Upload => tracker.UploadStatus,
-        PaperProcessingStep.MarkdownConversion => tracker.MarkdownStatus,
-        PaperProcessingStep.MetadataExtraction => tracker.MetadataExtractionStatus,
-        PaperProcessingStep.CrossrefEnrichment => tracker.CrossrefStatus,
-        PaperProcessingStep.MetadataQualityScoring => tracker.MetadataQualityStatus,
-        PaperProcessingStep.OpenAlexSimilarityCheck => tracker.OpenAlexStatus,
-        PaperProcessingStep.AiPublicationQualityReview => tracker.AiReviewStatus,
-        PaperProcessingStep.IntegrityScreening => tracker.IntegrityScreeningStatus,
-        _ => ProcessingStepStatus.NotStarted
+        var events = await db.Set<PaperProcessingEvent>()
+            .AsNoTracking()
+            .Where(x => x.TrackerId == tracker.Id)
+            .OrderBy(x => x.CreatedAt)
+            .ThenBy(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        return new PaperProcessingTrackerResponse
+        {
+            PaperId = tracker.PaperId,
+            PaperVersionId = tracker.PaperVersionId,
+            CorrelationId = tracker.CorrelationId,
+            CurrentStage = tracker.CurrentStage,
+            CurrentStatus = tracker.CurrentStatus,
+            OverallStatus = tracker.OverallStatus,
+            ProgressPercent = tracker.ProgressPercent,
+            LastError = tracker.LastError,
+            RetryCount = tracker.RetryCount,
+            StartedAt = tracker.StartedAt,
+            LastUpdatedAt = tracker.LastUpdatedAt,
+            CompletedAt = tracker.CompletedAt,
+            Steps = BuildSteps(events)
+        };
+    }
+
+    private static IReadOnlyList<PaperProcessingStepResponse> BuildSteps(IReadOnlyList<PaperProcessingEvent> events)
+    {
+        return events
+            .GroupBy(x => x.Stage)
+            .Select(group =>
+            {
+                var ordered = group.OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToArray();
+                var latest = ordered[^1];
+                return new PaperProcessingStepResponse
+                {
+                    Name = NameFor(latest.Stage),
+                    Stage = latest.Stage,
+                    Status = latest.Status,
+                    EventId = latest.EventId,
+                    EventType = latest.EventType,
+                    StartedAt = ordered.FirstOrDefault(x => x.Status == ProcessingStatus.PROCESSING)?.CreatedAt,
+                    CompletedAt = ordered.LastOrDefault(x => x.Status == ProcessingStatus.COMPLETED)?.CreatedAt,
+                    ErrorMessage = ordered.LastOrDefault(x => x.Status == ProcessingStatus.FAILED)?.ErrorMessage,
+                    PayloadJson = latest.PayloadJson
+                };
+            })
+            .OrderBy(x => OrderFor(x.Stage))
+            .ToArray();
+    }
+
+    private static string NameFor(ProcessingStage stage) => stage switch
+    {
+        ProcessingStage.UPLOADED => "Uploaded",
+        ProcessingStage.OCR_REQUESTED => "OCR Requested",
+        ProcessingStage.OCR_COMPLETED => "OCR Completed",
+        ProcessingStage.METADATA_REQUESTED => "Metadata Requested",
+        ProcessingStage.METADATA_COMPLETED => "Metadata Completed",
+        ProcessingStage.QUALITY_SCORING_REQUESTED => "Quality Scoring Requested",
+        ProcessingStage.QUALITY_SCORING_COMPLETED => "Quality Scoring Completed",
+        ProcessingStage.OPENALEX_REQUESTED => "OpenAlex Requested",
+        ProcessingStage.OPENALEX_COMPLETED => "OpenAlex Completed",
+        ProcessingStage.COMPLETED => "Completed",
+        ProcessingStage.FAILED => "Failed",
+        _ => stage.ToString()
     };
 
-    private static void SetStatusIfNotCompleted(PaperProcessingTracker tracker, PaperProcessingStep step, ProcessingStepStatus status)
+    private static int OrderFor(ProcessingStage stage) => stage switch
     {
-        if (GetStatus(tracker, step) is not (ProcessingStepStatus.Completed or ProcessingStepStatus.Skipped or ProcessingStepStatus.Failed))
-        {
-            SetStatus(tracker, step, status);
-        }
-    }
-
-    private static void SetStatus(PaperProcessingTracker tracker, PaperProcessingStep step, ProcessingStepStatus status)
-    {
-        switch (step)
-        {
-            case PaperProcessingStep.Upload:
-                tracker.UploadStatus = status;
-                break;
-            case PaperProcessingStep.MarkdownConversion:
-                tracker.MarkdownStatus = status;
-                break;
-            case PaperProcessingStep.MetadataExtraction:
-                tracker.MetadataExtractionStatus = status;
-                break;
-            case PaperProcessingStep.CrossrefEnrichment:
-                tracker.CrossrefStatus = status;
-                break;
-            case PaperProcessingStep.MetadataQualityScoring:
-                tracker.MetadataQualityStatus = status;
-                break;
-            case PaperProcessingStep.OpenAlexSimilarityCheck:
-                tracker.OpenAlexStatus = status;
-                break;
-            case PaperProcessingStep.AiPublicationQualityReview:
-                tracker.AiReviewStatus = status;
-                break;
-            case PaperProcessingStep.IntegrityScreening:
-                tracker.IntegrityScreeningStatus = status;
-                break;
-        }
-    }
-
-    private static void SetStartedAt(PaperProcessingTracker tracker, PaperProcessingStep step, DateTime now)
-    {
-        switch (step)
-        {
-            case PaperProcessingStep.MarkdownConversion:
-                tracker.MarkdownStartedAt ??= now;
-                break;
-            case PaperProcessingStep.MetadataExtraction:
-                tracker.MetadataStartedAt ??= now;
-                break;
-            case PaperProcessingStep.OpenAlexSimilarityCheck:
-                tracker.OpenAlexStartedAt ??= now;
-                break;
-        }
-    }
-
-    private static void SetCompletedAt(PaperProcessingTracker tracker, PaperProcessingStep step, DateTime now)
-    {
-        switch (step)
-        {
-            case PaperProcessingStep.Upload:
-                tracker.UploadCompletedAt ??= now;
-                break;
-            case PaperProcessingStep.MarkdownConversion:
-                tracker.MarkdownCompletedAt ??= now;
-                break;
-            case PaperProcessingStep.MetadataExtraction:
-                tracker.MetadataCompletedAt ??= now;
-                break;
-            case PaperProcessingStep.MetadataQualityScoring:
-                tracker.MetadataQualityCompletedAt ??= now;
-                break;
-            case PaperProcessingStep.OpenAlexSimilarityCheck:
-                tracker.OpenAlexCompletedAt ??= now;
-                break;
-        }
-    }
-
-    private static PaperProcessingStep ResolveNextStep(PaperProcessingStep step) => step switch
-    {
-        PaperProcessingStep.Upload => PaperProcessingStep.MarkdownConversion,
-        PaperProcessingStep.MarkdownConversion => PaperProcessingStep.MetadataExtraction,
-        PaperProcessingStep.MetadataExtraction => PaperProcessingStep.MetadataQualityScoring,
-        PaperProcessingStep.MetadataQualityScoring => PaperProcessingStep.OpenAlexSimilarityCheck,
-        PaperProcessingStep.OpenAlexSimilarityCheck => PaperProcessingStep.AiPublicationQualityReview,
-        PaperProcessingStep.AiPublicationQualityReview => PaperProcessingStep.IntegrityScreening,
-        _ => step
+        ProcessingStage.UPLOADED => 0,
+        ProcessingStage.OCR_REQUESTED => 10,
+        ProcessingStage.OCR_COMPLETED => 20,
+        ProcessingStage.METADATA_REQUESTED => 30,
+        ProcessingStage.METADATA_COMPLETED => 40,
+        ProcessingStage.QUALITY_SCORING_REQUESTED => 50,
+        ProcessingStage.QUALITY_SCORING_COMPLETED => 60,
+        ProcessingStage.OPENALEX_REQUESTED => 70,
+        ProcessingStage.OPENALEX_COMPLETED => 80,
+        ProcessingStage.COMPLETED => 90,
+        ProcessingStage.FAILED => 100,
+        _ => 999
     };
 
-    private static int ProgressFor(PaperProcessingStep step, ProcessingStepStatus status) => step switch
+    private static int ProgressFor(ProcessingStage stage) => stage switch
     {
-        PaperProcessingStep.Upload => 10,
-        PaperProcessingStep.MarkdownConversion => 35,
-        PaperProcessingStep.MetadataExtraction => 60,
-        PaperProcessingStep.MetadataQualityScoring => 75,
-        PaperProcessingStep.OpenAlexSimilarityCheck when status is ProcessingStepStatus.Completed or ProcessingStepStatus.Skipped => 85,
-        PaperProcessingStep.AiPublicationQualityReview when status is ProcessingStepStatus.Completed or ProcessingStepStatus.Skipped => 95,
+        ProcessingStage.UPLOADED => 10,
+        ProcessingStage.OCR_COMPLETED => 35,
+        ProcessingStage.METADATA_COMPLETED => 60,
+        ProcessingStage.QUALITY_SCORING_COMPLETED => 75,
+        ProcessingStage.OPENALEX_COMPLETED => 85,
+        ProcessingStage.COMPLETED => 100,
         _ => 0
     };
-
-    private static void Touch(PaperProcessingTracker tracker) => tracker.LastUpdatedAt = DateTime.UtcNow;
 
     private static string? SafeJson(string? value) => Sanitize(value, 4000);
 
@@ -424,62 +609,4 @@ public sealed class PaperProcessingTrackerService(
         var firstLine = value.Split(["\r\n", "\n"], StringSplitOptions.None).FirstOrDefault() ?? value;
         return firstLine.Length > maxLength ? firstLine[..maxLength] : firstLine;
     }
-
-    private static PaperProcessingTrackerResponse ToResponse(PaperProcessingTracker tracker) => new()
-    {
-        PaperId = tracker.PaperId,
-        PaperVersionId = tracker.PaperVersionId,
-        CorrelationId = tracker.CorrelationId,
-        OverallStatus = tracker.OverallStatus,
-        CurrentStep = tracker.CurrentStep,
-        ProgressPercent = tracker.ProgressPercent,
-        UploadStatus = tracker.UploadStatus,
-        MarkdownStatus = tracker.MarkdownStatus,
-        MetadataExtractionStatus = tracker.MetadataExtractionStatus,
-        MetadataQualityStatus = tracker.MetadataQualityStatus,
-        OpenAlexStatus = tracker.OpenAlexStatus,
-        CrossrefStatus = tracker.CrossrefStatus,
-        AiReviewStatus = tracker.AiReviewStatus,
-        IntegrityScreeningStatus = tracker.IntegrityScreeningStatus,
-        PaperUploadedEventId = tracker.PaperUploadedEventId,
-        MarkdownRequestedEventId = tracker.MarkdownRequestedEventId,
-        MarkdownGeneratedEventId = tracker.MarkdownGeneratedEventId,
-        MetadataExtractionRequestedEventId = tracker.MetadataExtractionRequestedEventId,
-        MetadataExtractedEventId = tracker.MetadataExtractedEventId,
-        MetadataQualityScoredEventId = tracker.MetadataQualityScoredEventId,
-        OpenAlexRequestedEventId = tracker.OpenAlexRequestedEventId,
-        OpenAlexCompletedEventId = tracker.OpenAlexCompletedEventId,
-        OpenAlexSkippedEventId = tracker.OpenAlexSkippedEventId,
-        LastErrorCode = tracker.LastErrorCode,
-        LastErrorMessage = tracker.LastErrorMessage,
-        LastFailedStep = tracker.LastFailedStep,
-        WarningsJson = tracker.WarningsJson,
-        LastUpdatedAt = tracker.LastUpdatedAt,
-        Steps =
-        [
-            BuildStep("Upload", PaperProcessingStep.Upload, tracker.UploadStatus, tracker.StartedAt, tracker.UploadCompletedAt, tracker),
-            BuildStep("Markdown Conversion", PaperProcessingStep.MarkdownConversion, tracker.MarkdownStatus, tracker.MarkdownStartedAt, tracker.MarkdownCompletedAt, tracker),
-            BuildStep("Metadata Extraction", PaperProcessingStep.MetadataExtraction, tracker.MetadataExtractionStatus, tracker.MetadataStartedAt, tracker.MetadataCompletedAt, tracker),
-            BuildStep("Metadata Quality Scoring", PaperProcessingStep.MetadataQualityScoring, tracker.MetadataQualityStatus, null, tracker.MetadataQualityCompletedAt, tracker),
-            BuildStep("OpenAlex Similarity Check", PaperProcessingStep.OpenAlexSimilarityCheck, tracker.OpenAlexStatus, tracker.OpenAlexStartedAt, tracker.OpenAlexCompletedAt, tracker),
-            BuildStep("AI Publication Quality Review", PaperProcessingStep.AiPublicationQualityReview, tracker.AiReviewStatus, null, null, tracker),
-            BuildStep("Integrity Screening", PaperProcessingStep.IntegrityScreening, tracker.IntegrityScreeningStatus, null, null, tracker)
-        ]
-    };
-
-    private static PaperProcessingStepResponse BuildStep(
-        string name,
-        PaperProcessingStep step,
-        ProcessingStepStatus status,
-        DateTime? startedAt,
-        DateTime? completedAt,
-        PaperProcessingTracker tracker) => new()
-    {
-        Name = name,
-        Step = step,
-        Status = status,
-        StartedAt = startedAt,
-        CompletedAt = completedAt,
-        ErrorMessage = tracker.LastFailedStep == step ? tracker.LastErrorMessage : null
-    };
 }

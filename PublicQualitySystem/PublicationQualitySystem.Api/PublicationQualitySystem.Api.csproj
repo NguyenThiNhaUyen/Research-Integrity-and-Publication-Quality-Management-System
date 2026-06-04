@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PublicationQualitySystem.Application\PublicationQualitySystem.Application.csproj" />
+    <ProjectReference Include="..\PublicationQualitySystem.Domain\PublicationQualitySystem.Domain.csproj" />
     <ProjectReference Include="..\PublicationQualitySystem.Infrastructure\PublicationQualitySystem.Infrastructure.csproj" />
     <ProjectReference Include="..\PublicationQualitySystem.Shared\PublicationQualitySystem.Shared.csproj" />
   </ItemGroup>

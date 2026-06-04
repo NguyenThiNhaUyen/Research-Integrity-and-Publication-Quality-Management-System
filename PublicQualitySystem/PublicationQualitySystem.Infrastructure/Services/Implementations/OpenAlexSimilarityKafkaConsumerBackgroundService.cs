@@ -142,7 +142,11 @@ public sealed class OpenAlexSimilarityKafkaConsumerBackgroundService(
 
         try
         {
-            await processingTracker.MarkStepStartedAsync(message.PaperVersionId, PaperProcessingStep.OpenAlexSimilarityCheck, cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                message.PaperVersionId,
+                ProcessingStage.OPENALEX_REQUESTED,
+                "OpenAlexSimilarityCheckStarted",
+                cancellationToken: cancellationToken);
             var result = await openAlex.CheckSimilarityAsync(metadata, cancellationToken);
             check.Status = SimilarityCheckStatus.COMPLETED;
             check.CheckedAt = DateTime.UtcNow;
@@ -169,9 +173,16 @@ public sealed class OpenAlexSimilarityKafkaConsumerBackgroundService(
             }
 
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepCompletedAsync(
+            await processingTracker.RecordStepCompletedAsync(
                 message.PaperVersionId,
-                PaperProcessingStep.OpenAlexSimilarityCheck,
+                ProcessingStage.OPENALEX_COMPLETED,
+                "OpenAlexSimilarityCheckCompleted",
+                $"{{\"overallScore\":{check.OverallScore ?? 0},\"riskLevel\":\"{check.RiskLevel}\"}}",
+                cancellationToken);
+            await processingTracker.RecordStepCompletedAsync(
+                message.PaperVersionId,
+                ProcessingStage.COMPLETED,
+                "PaperProcessingCompleted",
                 $"{{\"overallScore\":{check.OverallScore ?? 0},\"riskLevel\":\"{check.RiskLevel}\"}}",
                 cancellationToken);
             logger.LogInformation(
@@ -187,9 +198,9 @@ public sealed class OpenAlexSimilarityKafkaConsumerBackgroundService(
             check.ErrorMessage = ex.Message;
             check.CheckedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(CancellationToken.None);
-            await processingTracker.MarkStepFailedAsync(
+            await processingTracker.RecordStepFailedAsync(
                 message.PaperVersionId,
-                PaperProcessingStep.OpenAlexSimilarityCheck,
+                ProcessingStage.FAILED,
                 "OpenAlexSimilarityFailed",
                 ex.Message,
                 cancellationToken: CancellationToken.None);

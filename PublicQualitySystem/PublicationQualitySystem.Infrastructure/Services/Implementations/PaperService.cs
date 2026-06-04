@@ -266,11 +266,12 @@ public class PaperService(
         };
         db.OutboxMessages.Add(paperUploadedOutbox);
         await db.SaveChangesAsync(cancellationToken);
-        await processingTracker.MarkEventPublishedAsync(
+        await processingTracker.RecordEventPublishedAsync(
             version.Id,
-            PaperProcessingStep.Upload,
+            ProcessingStage.UPLOADED,
             paperUploadedOutbox.Id.ToString(),
-            kafkaOptions.Value.PaperUploadedTopic,
+            nameof(PaperUploadedIntegrationEvent),
+            paperUploadedOutbox.Payload,
             cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

@@ -68,7 +68,11 @@ public sealed class PaperOcrBackgroundService(
             version.ConversionStatus = ConversionStatus.Processing;
             version.ConversionError = null;
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepStartedAsync(version.Id, PaperProcessingStep.MarkdownConversion, cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                version.Id,
+                ProcessingStage.OCR_REQUESTED,
+                "NougatMarkdownConversionStarted",
+                cancellationToken: cancellationToken);
 
             await auditLog.StartStepAsync(
                 ProcessingStep.NOUGAT_MARKDOWN_CONVERSION,
@@ -103,9 +107,10 @@ public sealed class PaperOcrBackgroundService(
             version.ConvertedAt = DateTime.UtcNow;
             version.ConversionError = null;
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepCompletedAsync(
+            await processingTracker.RecordStepCompletedAsync(
                 version.Id,
-                PaperProcessingStep.MarkdownConversion,
+                ProcessingStage.OCR_COMPLETED,
+                "NougatMarkdownConversionCompleted",
                 $"{{\"markdownS3Key\":\"{markdownKey}\",\"markdownLength\":{markdown.Length}}}",
                 cancellationToken);
 
@@ -135,10 +140,10 @@ public sealed class PaperOcrBackgroundService(
             version.ConversionStatus = ConversionStatus.Failed;
             version.ConversionError = ex.Message;
             await db.SaveChangesAsync(CancellationToken.None);
-            await processingTracker.MarkStepFailedAsync(
+            await processingTracker.RecordStepFailedAsync(
                 version.Id,
-                PaperProcessingStep.MarkdownConversion,
-                nameof(NougatErrorCode.ConversionFailed),
+                ProcessingStage.FAILED,
+                "NougatMarkdownConversionFailed",
                 ex.Message,
                 cancellationToken: CancellationToken.None);
             await auditLog.FailStepAsync(

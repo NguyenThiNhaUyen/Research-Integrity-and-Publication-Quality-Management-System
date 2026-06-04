@@ -156,7 +156,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractionStatus = MetadataExtractionStatus.Processing;
             metadata.ExtractionError = null;
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepStartedAsync(version.Id, PaperProcessingStep.MetadataExtraction, cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                version.Id,
+                ProcessingStage.METADATA_REQUESTED,
+                "GrobidMetadataExtractionStarted",
+                cancellationToken: cancellationToken);
 
             await auditLog.StartStepAsync(
                 ProcessingStep.GROBID_METADATA_EXTRACTION,
@@ -188,16 +192,29 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
 
             if (!string.IsNullOrWhiteSpace(extracted.Doi))
             {
-                await processingTracker.MarkStepStartedAsync(version.Id, PaperProcessingStep.CrossrefEnrichment, cancellationToken);
+                await processingTracker.RecordStepStartedAsync(
+                    version.Id,
+                    ProcessingStage.METADATA_REQUESTED,
+                    "CrossrefEnrichmentStarted",
+                    cancellationToken: cancellationToken);
                 var crossrefMetadata = await crossref.GetWorkByDoiAsync(extracted.Doi, cancellationToken);
                 extracted = ScholarlyMetadataMerger.Merge(extracted, crossrefMetadata);
                 if (crossrefMetadata is null)
                 {
-                    await processingTracker.MarkStepSkippedAsync(version.Id, PaperProcessingStep.CrossrefEnrichment, "Crossref returned no enrichment data.", cancellationToken);
+                    await processingTracker.RecordStepSkippedAsync(
+                        version.Id,
+                        ProcessingStage.METADATA_REQUESTED,
+                        "CrossrefEnrichmentSkipped",
+                        "Crossref returned no enrichment data.",
+                        cancellationToken);
                 }
                 else
                 {
-                    await processingTracker.MarkStepCompletedAsync(version.Id, PaperProcessingStep.CrossrefEnrichment, cancellationToken: cancellationToken);
+                    await processingTracker.RecordStepCompletedAsync(
+                        version.Id,
+                        ProcessingStage.METADATA_REQUESTED,
+                        "CrossrefEnrichmentCompleted",
+                        cancellationToken: cancellationToken);
                 }
             }
             else
@@ -206,7 +223,12 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                     "Crossref lookup skipped because DOI was not found. PaperId={PaperId}, PaperVersionId={PaperVersionId}",
                     version.PaperId,
                     version.Id);
-                await processingTracker.MarkStepSkippedAsync(version.Id, PaperProcessingStep.CrossrefEnrichment, "DOI was not found.", cancellationToken);
+                await processingTracker.RecordStepSkippedAsync(
+                    version.Id,
+                    ProcessingStage.METADATA_REQUESTED,
+                    "CrossrefEnrichmentSkipped",
+                    "DOI was not found.",
+                    cancellationToken);
             }
 
             metadata.Title = extracted.Title;
@@ -235,7 +257,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractedAt = DateTime.UtcNow;
 
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepCompletedAsync(version.Id, PaperProcessingStep.MetadataExtraction, cancellationToken: cancellationToken);
+            await processingTracker.RecordStepCompletedAsync(
+                version.Id,
+                ProcessingStage.METADATA_COMPLETED,
+                "GrobidMetadataExtractionCompleted",
+                cancellationToken: cancellationToken);
 
             await auditLog.CompleteStepAsync(
                 ProcessingStep.GROBID_METADATA_EXTRACTION,
@@ -261,7 +287,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                 correlationId: message.CorrelationId,
                 message: "Metadata quality scoring started.",
                 cancellationToken: cancellationToken);
-            await processingTracker.MarkStepStartedAsync(version.Id, PaperProcessingStep.MetadataQualityScoring, cancellationToken);
+            await processingTracker.RecordStepStartedAsync(
+                version.Id,
+                ProcessingStage.QUALITY_SCORING_REQUESTED,
+                "MetadataQualityScoringStarted",
+                cancellationToken: cancellationToken);
 
             var qualityScore = qualityScoring.Calculate(metadata);
             MetadataQualityScoreMapper.Apply(metadata, qualityScore, DateTime.UtcNow);
@@ -278,12 +308,17 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             };
             AddOutbox(db, options.Value.MetadataQualityScoredTopic, version.PaperId.ToString(), metadataQualityScoredEvent);
             await db.SaveChangesAsync(cancellationToken);
-            await processingTracker.MarkStepCompletedAsync(version.Id, PaperProcessingStep.MetadataQualityScoring, cancellationToken: cancellationToken);
-            await processingTracker.MarkEventPublishedAsync(
+            await processingTracker.RecordStepCompletedAsync(
                 version.Id,
-                PaperProcessingStep.MetadataQualityScoring,
+                ProcessingStage.QUALITY_SCORING_COMPLETED,
+                "MetadataQualityScoringCompleted",
+                cancellationToken: cancellationToken);
+            await processingTracker.RecordEventPublishedAsync(
+                version.Id,
+                ProcessingStage.QUALITY_SCORING_COMPLETED,
                 metadataQualityScoredEvent.EventId.ToString(),
-                options.Value.MetadataQualityScoredTopic,
+                nameof(MetadataQualityScoredIntegrationEvent),
+                JsonSerializer.Serialize(metadataQualityScoredEvent, JsonOptions),
                 cancellationToken);
 
             await auditLog.CompleteStepAsync(
@@ -360,10 +395,10 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.ExtractionStatus = MetadataExtractionStatus.Failed;
             metadata.ExtractionError = ex.Message;
             await db.SaveChangesAsync(CancellationToken.None);
-            await processingTracker.MarkStepFailedAsync(
+            await processingTracker.RecordStepFailedAsync(
                 version.Id,
-                PaperProcessingStep.MetadataExtraction,
-                nameof(MetadataExtractionStatus.Failed),
+                ProcessingStage.FAILED,
+                "GrobidMetadataExtractionFailed",
                 ex.Message,
                 cancellationToken: CancellationToken.None);
             await auditLog.FailStepAsync(
