@@ -49,6 +49,12 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
             issues.Add("REFERENCE_TITLE_POLLUTED");
         }
 
+        if (ReferenceNormalizer.LooksLikeAuthorFragmentTitle(reference.Title))
+        {
+            issues.Add("REFERENCE_TITLE_PARSE_FAILED");
+            issues.Add("REFERENCE_PARSE_SUSPECT");
+        }
+
         if (IsJournalSuspect(normalized.Journal, normalized.Title))
         {
             issues.Add("REFERENCE_JOURNAL_SUSPECT");
@@ -93,7 +99,7 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
         var doiValidation = referencesWithDoi == 0 ? 0 : validDoiCount * 100.0 / Math.Max(referencesWithDoi, 1) * 0.20;
         var titleYearMatch = Math.Max(0, 100 - (titleMismatchCount * 10)) * 0.10;
         var cleanlinessIssues = references.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_TITLE_PARSE_FAILED" or "REFERENCE_PARSE_SUSPECT" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
         var cleanliness = Math.Max(0, 100 - (cleanlinessIssues * 10) - (invalidDoiCount * 5)) * 0.10;
 
         return Math.Clamp((int)Math.Round(completeness + doiCoverage + doiValidation + titleYearMatch + cleanliness), 0, 100);
@@ -133,7 +139,8 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
     private static double CalculateParseConfidence(int completeness, IReadOnlyList<string> issues)
     {
         var penalty = issues.Count(issue => issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_PAGES_SUSPECT") * 15
-            + issues.Count(issue => issue is "REFERENCE_AUTHOR_LOW_CONFIDENCE") * 10;
+            + issues.Count(issue => issue is "REFERENCE_TITLE_PARSE_FAILED") * 25
+            + issues.Count(issue => issue is "REFERENCE_PARSE_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE") * 10;
         return Math.Clamp(completeness - penalty, 0, 100);
     }
 

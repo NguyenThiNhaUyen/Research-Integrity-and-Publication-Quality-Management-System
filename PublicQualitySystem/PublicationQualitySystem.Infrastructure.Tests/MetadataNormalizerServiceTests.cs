@@ -82,7 +82,7 @@ public class MetadataNormalizerServiceTests
         var reference = Assert.Single(result.Metadata.References);
         Assert.Equal("View on 5G architecture", reference.Title);
         Assert.Equal("Computer Networks", reference.Journal);
-        Assert.Contains(reference.Authors, x => x.FullName == "S Redana");
+        Assert.Contains(reference.Authors, x => x.FullName == "S. Redana");
         Assert.Contains("REFERENCE_TITLE_POLLUTED", result.IssueCodes);
     }
 
@@ -96,7 +96,7 @@ public class MetadataNormalizerServiceTests
                 new ReferenceDto
                 {
                     Title = "Low confidence paper",
-                    RawText = "Possibly A Name But Also A Sentence. Low confidence paper, 2024."
+                    RawText = "Ada Lovelace; 2024. Low confidence paper."
                 }
             ]
         });
@@ -207,6 +207,57 @@ public class MetadataNormalizerServiceTests
         Assert.Contains("REFERENCE_BOUNDARY_SUSPECT", reference.IssueCodes);
         Assert.Contains("REFERENCE_BOUNDARY_SUSPECT", result.IssueCodes);
         Assert.True(result.ReferenceResults[0].MetadataCompletenessScore < 60);
+    }
+
+    [Fact]
+    public void Normalize_MarksBoundarySuspectWhenTwoParentFieldsMatchEvenWithDoi()
+    {
+        var result = service.Normalize(new GrobidMetadataResponse
+        {
+            Title = "LESS-ON: Load-aware edge server shutdown for energy saving in cellular networks",
+            Journal = "Computer Networks",
+            Volume = "252",
+            Pages = "110675",
+            References =
+            [
+                new ReferenceDto
+                {
+                    Title = "Independent edge computing reference",
+                    Journal = "Computer Networks",
+                    Volume = "252",
+                    Doi = "10.1109/example.2024.1",
+                    RawText = "Independent edge computing reference"
+                }
+            ]
+        });
+
+        var reference = Assert.Single(result.Metadata.References);
+        Assert.Contains("REFERENCE_BOUNDARY_SUSPECT", reference.IssueCodes);
+        Assert.True(result.ReferenceResults[0].MetadataCompletenessScore < 75);
+    }
+
+    [Fact]
+    public void Normalize_DoesNotMarkBoundarySuspectForJournalOnlyMatch()
+    {
+        var result = service.Normalize(new GrobidMetadataResponse
+        {
+            Title = "LESS-ON: Load-aware edge server shutdown for energy saving in cellular networks",
+            Journal = "Computer Networks",
+            Volume = "252",
+            Pages = "110675",
+            References =
+            [
+                new ReferenceDto
+                {
+                    Title = "Independent edge computing reference",
+                    Journal = "Computer Networks",
+                    RawText = "Independent edge computing reference"
+                }
+            ]
+        });
+
+        var reference = Assert.Single(result.Metadata.References);
+        Assert.DoesNotContain("REFERENCE_BOUNDARY_SUSPECT", reference.IssueCodes);
     }
 
     [Fact]

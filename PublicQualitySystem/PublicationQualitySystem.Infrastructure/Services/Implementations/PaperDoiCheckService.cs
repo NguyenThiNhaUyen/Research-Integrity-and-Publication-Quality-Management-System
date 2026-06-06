@@ -25,6 +25,20 @@ public sealed class PaperDoiCheckService(
 {
     private const double TitleMismatchThreshold = 75;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly HashSet<string> TitleStopWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "a",
+        "an",
+        "and",
+        "of",
+        "on",
+        "in",
+        "for",
+        "to",
+        "the",
+        "with",
+        "by"
+    };
     private static readonly Regex DoiRegex = new(
         @"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -391,10 +405,17 @@ public sealed class PaperDoiCheckService(
             return 100;
         }
 
+        var leftTokens = MeaningfulTokens(a);
+        var rightTokens = MeaningfulTokens(b);
+        if (leftTokens.Length < 3 || rightTokens.Length < 3)
+        {
+            return 0;
+        }
+
         var distance = LevenshteinDistance(a, b);
         var maxLength = Math.Max(a.Length, b.Length);
         var levenshtein = 1.0 - (double)distance / maxLength;
-        var jaccard = TokenJaccard(a, b);
+        var jaccard = TokenJaccard(leftTokens, rightTokens);
         var score = Math.Max(levenshtein, jaccard) * 100;
         return Math.Round(score, 2);
     }
@@ -503,7 +524,9 @@ public sealed class PaperDoiCheckService(
     private static DoiValidationResult ApplyMetadataComparison(DoiValidationResult result, string? expectedTitle, int? expectedYear)
     {
         var titleSimilarity = TitleSimilarity(expectedTitle, result.MatchedTitle);
-        var hasTitleMismatch = !string.IsNullOrWhiteSpace(expectedTitle)
+        var titleParseFailed = ReferenceNormalizer.LooksLikeAuthorFragmentTitle(expectedTitle);
+        var hasTitleMismatch = !titleParseFailed
+            && !string.IsNullOrWhiteSpace(expectedTitle)
             && !string.IsNullOrWhiteSpace(result.MatchedTitle)
             && titleSimilarity < TitleMismatchThreshold;
         var yearMatched = expectedYear.HasValue && result.MatchedYear.HasValue
@@ -515,8 +538,8 @@ public sealed class PaperDoiCheckService(
             Status = hasTitleMismatch ? DoiValidationStatus.METADATA_MISMATCH : DoiValidationStatus.VALID,
             TitleSimilarity = titleSimilarity,
             YearMatched = yearMatched,
-            IssueCode = hasTitleMismatch ? "DOI_TITLE_MISMATCH" : result.IssueCode,
-            IssueMessage = hasTitleMismatch ? "DOI metadata title does not match extracted title." : result.IssueMessage
+            IssueCode = titleParseFailed ? "REFERENCE_TITLE_PARSE_FAILED" : hasTitleMismatch ? "DOI_TITLE_MISMATCH" : result.IssueCode,
+            IssueMessage = titleParseFailed ? "Extracted title looks like an author fragment; DOI metadata was kept as the validation snapshot." : hasTitleMismatch ? "DOI metadata title does not match extracted title." : result.IssueMessage
         };
     }
 
@@ -580,7 +603,7 @@ public sealed class PaperDoiCheckService(
         check.LowConfidenceReferences = qualityResults.Count(x => x.IssueCodes.Contains("REFERENCE_AUTHOR_LOW_CONFIDENCE"));
         check.DuplicateReferences = CountDuplicateReferences(references);
         check.ReferenceCleanlinessIssues = qualityResults.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_TITLE_PARSE_FAILED" or "REFERENCE_PARSE_SUSPECT" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
         check.ReferenceDoiCoveragePercent = check.TotalReferences == 0
             ? 0
             : Math.Round(check.ReferencesWithDoi * 100.0 / check.TotalReferences, 2);
@@ -777,10 +800,14 @@ public sealed class PaperDoiCheckService(
             && longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static double TokenJaccard(string left, string right)
+    private static string[] MeaningfulTokens(string normalizedTitle) =>
+        normalizedTitle
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(token => token.Length > 1 && !TitleStopWords.Contains(token))
+            .ToArray();
+
+    private static double TokenJaccard(IReadOnlyCollection<string> leftTokens, IReadOnlyCollection<string> rightTokens)
     {
-        var leftTokens = left.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var rightTokens = right.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (leftTokens.Count == 0 || rightTokens.Count == 0)
         {
             return 0;

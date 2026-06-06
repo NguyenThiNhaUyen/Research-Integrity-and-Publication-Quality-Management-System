@@ -39,6 +39,33 @@ public class ReferenceQualityServiceTests
     }
 
     [Fact]
+    public void ExtractAuthors_ParsesCompactInitialTokensAndParticles()
+    {
+        var authors = ReferenceNormalizer.ExtractAuthors("BRamprasad ADa Silva MVeith EGabel J.-MPierson AVVasilakos - Workload management in edge systems.");
+
+        Assert.Contains(authors, x => x.FullName == "B. Ramprasad");
+        Assert.Contains(authors, x => x.FullName == "A. da Silva");
+        Assert.Contains(authors, x => x.FullName == "M. Veith");
+        Assert.Contains(authors, x => x.FullName == "E. Gabel");
+        Assert.Contains(authors, x => x.FullName == "J.-M. Pierson");
+        Assert.Contains(authors, x => x.FullName == "A. V. Vasilakos");
+    }
+
+    [Fact]
+    public void Normalize_TreatsCompactAuthorFragmentAsParseFailedTitle()
+    {
+        var result = normalizer.NormalizeDetailed(new ReferenceDto
+        {
+            Title = "J.-MPierson AVVasilakos",
+            RawText = "J.-MPierson AVVasilakos"
+        });
+
+        Assert.Null(result.Reference.Title);
+        Assert.Contains("REFERENCE_TITLE_PARSE_FAILED", result.IssueCodes);
+        Assert.Contains("REFERENCE_PARSE_SUSPECT", result.IssueCodes);
+    }
+
+    [Fact]
     public void Evaluate_DetectsMissingAuthorAndVenue()
     {
         var service = new ReferenceQualityService(normalizer);
@@ -52,6 +79,23 @@ public class ReferenceQualityServiceTests
         Assert.Contains("REFERENCE_MISSING_AUTHOR", result.IssueCodes);
         Assert.Contains("REFERENCE_YEAR_MISSING", result.IssueCodes);
         Assert.Contains("REFERENCE_MISSING_VENUE", result.IssueCodes);
+    }
+
+    [Fact]
+    public void Evaluate_MissingDoiIsWarningQualityLossNotInvalidFormat()
+    {
+        var service = new ReferenceQualityService(normalizer);
+
+        var result = service.Evaluate(new ReferenceDto
+        {
+            Title = "Reference Without Doi",
+            Authors = [new AuthorDto { FullName = "Ada Lovelace" }],
+            Journal = "Journal of Tests",
+            PublicationYear = 2024
+        });
+
+        Assert.Contains("REFERENCE_DOI_MISSING", result.IssueCodes);
+        Assert.True(result.DoiFormatValid);
     }
 
     [Fact]

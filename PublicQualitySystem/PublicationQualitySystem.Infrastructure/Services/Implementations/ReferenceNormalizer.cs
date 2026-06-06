@@ -26,6 +26,38 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
         "Lecture Notes in Computer Science"
     ];
 
+    private static readonly HashSet<string> SurnameParticles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "de",
+        "da",
+        "del",
+        "di",
+        "van",
+        "von",
+        "der",
+        "den",
+        "la",
+        "le",
+        "dos",
+        "das"
+    };
+
+    private static readonly string[] TitleLikeAuthorTerms =
+    [
+        "architecture",
+        "working group",
+        "survey",
+        "network",
+        "networks",
+        "computing",
+        "energy",
+        "server",
+        "system",
+        "systems",
+        "communication",
+        "communications"
+    ];
+
     public ReferenceDto Normalize(ReferenceDto reference) => NormalizeDetailed(reference).Reference;
 
     public ReferenceNormalizationResult NormalizeDetailed(ReferenceDto reference)
@@ -34,6 +66,14 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
         var warnings = new List<string>();
         var normalizedDoi = NormalizeDoi(reference.Doi ?? ExtractDoi(reference.RawText));
         var title = CleanTitle(reference.Title, reference.RawText, reference.Journal, normalizedDoi, reference.PublicationYear, reference.Volume, reference.Issue, reference.Pages);
+        if (LooksLikeAuthorFragmentTitle(title))
+        {
+            issues.Add("REFERENCE_TITLE_PARSE_FAILED");
+            issues.Add("REFERENCE_PARSE_SUSPECT");
+            warnings.Add("Reference title looks like an author fragment and was not trusted as canonical title.");
+            title = null;
+        }
+
         var journal = NormalizeJournal(reference.Journal, title, reference.RawText);
         var year = reference.PublicationYear ?? ExtractYear(reference.RawText);
         var pages = NormalizePages(reference.Pages, reference.RawText, normalizedDoi, issues);
@@ -217,32 +257,63 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
             return Array.Empty<AuthorDto>();
         }
 
-        var authors = new List<AuthorDto>();
-        foreach (Match match in CompactAuthorRegex().Matches(prefix))
-        {
-            var fullName = $"{match.Groups["initial"].Value} {match.Groups["surname"].Value}";
-            if (authors.All(x => !string.Equals(x.FullName, fullName, StringComparison.OrdinalIgnoreCase)))
-            {
-                authors.Add(new AuthorDto { FullName = fullName });
-            }
-        }
-
+        var authors = ExtractCompactAuthors(prefix).ToList();
         if (authors.Count > 0)
         {
             return authors;
         }
 
         var parts = prefix.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 1 && prefix.Contains(" and ", StringComparison.OrdinalIgnoreCase))
+        {
+            parts = prefix.Split([" and "], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        }
+
         foreach (var part in parts)
         {
             var cleaned = NormalizeSpaces(part);
             if (IsPlausibleAuthorName(cleaned))
             {
-                authors.Add(new AuthorDto { FullName = cleaned });
+                authors.Add(new AuthorDto { FullName = NormalizeAuthorCasing(cleaned!) });
             }
         }
 
         return authors;
+    }
+
+    public static bool LooksLikeAuthorFragmentTitle(string? title)
+    {
+        var value = NormalizeSpaces(title);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (KnownVenueTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        var tokens = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > 10)
+        {
+            return false;
+        }
+
+        if (CompactAuthorRegex().Matches(value).Count >= 1
+            && !TitleLikeAuthorTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        if (tokens.Length is >= 2 and <= 6
+            && tokens.All(token => InitialTokenRegex().IsMatch(token) || SurnameParticles.Contains(token) || SurnameTokenRegex().IsMatch(token))
+            && tokens.Any(token => InitialTokenRegex().IsMatch(token)))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     public static string? NormalizeJournal(string? journal, string? title, string? rawText)
@@ -419,7 +490,7 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
         var authorName = authors[0].FullName;
         if (!string.IsNullOrWhiteSpace(rawText)
             && !string.IsNullOrWhiteSpace(authorName)
-            && rawText.StartsWith(authorName.Replace(" ", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase))
+            && rawText.StartsWith(authorName.Replace(" ", "", StringComparison.Ordinal).Replace(".", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase))
         {
             return 75;
         }
@@ -444,8 +515,9 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
     private static double CalculateParseConfidence(ReferenceDto reference, IReadOnlyList<string> issues)
     {
         var score = 100;
-        score -= issues.Count(issue => issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_PAGES_SUSPECT") * 15;
+        score -= issues.Count(issue => issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_PARSE_SUSPECT") * 15;
         score -= issues.Count(issue => issue is "REFERENCE_MISSING_AUTHOR" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_YEAR_MISSING") * 20;
+        score -= issues.Count(issue => issue is "REFERENCE_TITLE_PARSE_FAILED") * 25;
         if (string.IsNullOrWhiteSpace(reference.Title))
         {
             score -= 30;
@@ -484,10 +556,86 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
             return false;
         }
 
+        if (TitleLikeAuthorTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase))
+            || KnownVenueTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
         var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return words is { Length: >= 2 and <= 5 }
             && words.All(word => word.Any(char.IsLetter))
-            && !KnownVenueTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+            && words.Any(word => SurnameParticles.Contains(word) || word.Length > 1);
+    }
+
+    private static IReadOnlyList<AuthorDto> ExtractCompactAuthors(string prefix)
+    {
+        var matches = CompactAuthorRegex().Matches(prefix);
+        if (matches.Count == 0)
+        {
+            return Array.Empty<AuthorDto>();
+        }
+
+        var authors = new List<AuthorDto>();
+        foreach (Match match in matches)
+        {
+            var author = CreateCompactAuthor(match);
+            if (author is not null
+                && authors.All(x => !string.Equals(x.FullName, author.FullName, StringComparison.OrdinalIgnoreCase)))
+            {
+                authors.Add(author);
+            }
+        }
+
+        return authors;
+    }
+
+    private static AuthorDto? CreateCompactAuthor(Match match)
+    {
+        var initials = match.Groups["initials"].Value;
+        var surname = NormalizeAuthorCasing(match.Groups["surname"].Value);
+        if (string.IsNullOrWhiteSpace(initials) || string.IsNullOrWhiteSpace(surname))
+        {
+            return null;
+        }
+
+        var formattedInitials = FormatInitials(initials);
+        var fullName = $"{formattedInitials} {surname}".Trim();
+        return new AuthorDto
+        {
+            FullName = fullName,
+            LastName = surname
+        };
+    }
+
+    private static string FormatInitials(string initials)
+    {
+        var letters = initials.Where(char.IsLetter).Select(char.ToUpperInvariant).ToArray();
+        if (letters.Length == 0)
+        {
+            return initials;
+        }
+
+        if (initials.Contains('-'))
+        {
+            return $"{letters[0]}.-{letters[^1]}.";
+        }
+
+        return string.Join(" ", letters.Select(letter => $"{letter}."));
+    }
+
+    private static string NormalizeAuthorCasing(string value)
+    {
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < words.Length; i++)
+        {
+            if (SurnameParticles.Contains(words[i]))
+            {
+                words[i] = words[i].ToLowerInvariant();
+            }
+        }
+
+        return string.Join(" ", words);
     }
 
     private static string? NormalizeSpaces(string? value)
@@ -512,8 +660,14 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
     [GeneratedRegex(@"\b(?:19|20)\d{2}\b", RegexOptions.CultureInvariant)]
     private static partial Regex YearRegex();
 
-    [GeneratedRegex(@"\b(?<initial>[A-Z])\.?\s*(?<surname>[A-Z][a-z]{2,})\b", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"\b(?:(?<initials>[A-Z]\.-?[A-Z]\.?)(?<surname>[A-Z][a-z]{2,})|(?<initials>[A-Z]{2})(?<surname>[A-Z][a-z]{2,})|(?<initials>[A-Z])(?<surname>(?:Da|De|Del|Di|Van|Von|Der|Den|La|Le|Dos|Das)\s+[A-Z][A-Za-z]+|[A-Z][a-z]{2,}))\b", RegexOptions.CultureInvariant)]
     private static partial Regex CompactAuthorRegex();
+
+    [GeneratedRegex(@"^(?:[A-Z]\.|[A-Z]\.-[A-Z]\.|[A-Z])$", RegexOptions.CultureInvariant)]
+    private static partial Regex InitialTokenRegex();
+
+    [GeneratedRegex(@"^[A-Z][A-Za-z]{2,}$", RegexOptions.CultureInvariant)]
+    private static partial Regex SurnameTokenRegex();
 
     [GeneratedRegex(@"^(?:[A-Z]\.?\s*[A-Z][a-z]+\s*){2,}", RegexOptions.CultureInvariant)]
     private static partial Regex LeadingAuthorListRegex();

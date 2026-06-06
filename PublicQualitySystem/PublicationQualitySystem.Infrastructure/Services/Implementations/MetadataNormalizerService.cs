@@ -194,12 +194,12 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
     private static bool ApplyParentBoundaryCheck(ReferenceDto reference, string? metadataTitle, string? parentJournal, string? parentVolume, string? parentPages)
     {
         var titleIsMain = AreSameText(reference.Title, metadataTitle);
-        var missingDoi = string.IsNullOrWhiteSpace(reference.Doi);
-        var inherited = missingDoi
-            && !titleIsMain
-            && (AreSameText(reference.Journal, parentJournal)
-                || AreSameText(reference.Volume, parentVolume)
-                || AreSameText(reference.Pages, parentPages));
+        var journalMatches = AreSameText(reference.Journal, parentJournal);
+        var volumeMatches = AreSameText(reference.Volume, parentVolume);
+        var pagesMatches = AreSameText(reference.Pages, parentPages);
+        var matchCount = new[] { journalMatches, volumeMatches, pagesMatches }.Count(BooleanIsTrue);
+        var inherited = !titleIsMain
+            && (matchCount >= 2 || (journalMatches && pagesMatches));
         if (!inherited)
         {
             return false;
@@ -388,9 +388,11 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
 
         var averageConfidence = references.Average(x => x.ParseConfidenceScore);
         var issuePenalty = references.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT")) * 5;
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_TITLE_PARSE_FAILED" or "REFERENCE_PARSE_SUSPECT" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT")) * 5;
         return Math.Clamp((int)Math.Round(averageConfidence - issuePenalty), 0, 100);
     }
+
+    private static bool BooleanIsTrue(bool value) => value;
 
     [GeneratedRegex(@"(?<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DoiRegex();

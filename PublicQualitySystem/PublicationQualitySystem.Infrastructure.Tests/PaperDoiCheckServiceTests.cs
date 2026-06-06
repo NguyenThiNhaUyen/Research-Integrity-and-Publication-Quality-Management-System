@@ -55,6 +55,24 @@ public class PaperDoiCheckServiceTests
     }
 
     [Fact]
+    public void TitleSimilarity_SkipsFuzzyMismatchForShortNonPrefixTitles()
+    {
+        var score = PaperDoiCheckService.TitleSimilarity(
+            "Cloud Computing",
+            "Cloud Networking");
+
+        Assert.Equal(0, score);
+    }
+
+    [Fact]
+    public void TitleSimilarity_StillAcceptsExactShortTitles()
+    {
+        var score = PaperDoiCheckService.TitleSimilarity("Cloud Computing", "cloud computing");
+
+        Assert.Equal(100, score);
+    }
+
+    [Fact]
     public void CalculateOverallScore_PenalizesMissingMainDoiAndLowReferenceCoverage()
     {
         var score = PaperDoiCheckService.CalculateOverallScore(

@@ -508,6 +508,6 @@ public class GrobidTeiParserTests
         Assert.Equal("View on 5G architecture", reference.Title);
         Assert.Equal("Computer Networks", reference.Journal);
         Assert.Equal(2019, reference.PublicationYear);
-        Assert.Contains(reference.Authors, author => author.FullName == "S Redana");
+        Assert.Contains(reference.Authors, author => author.FullName == "S. Redana");
     }
 }
