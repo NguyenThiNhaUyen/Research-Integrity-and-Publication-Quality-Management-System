@@ -32,7 +32,11 @@ public static class DependencyInjection
         services.AddScoped<IPaperService, PaperService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IPaperProcessingTrackerService, PaperProcessingTrackerService>();
+        services.AddScoped<IMetadataNormalizerService, MetadataNormalizerService>();
         services.AddScoped<IMetadataQualityScoringService, MetadataQualityScoringService>();
+        services.AddScoped<IPaperDoiCheckService, PaperDoiCheckService>();
+        services.AddScoped<IReferenceNormalizer, ReferenceNormalizer>();
+        services.AddScoped<IReferenceQualityService, ReferenceQualityService>();
         services.AddOptions<KafkaOptions>().BindConfiguration("Kafka");
         services.AddOptions<OpenAlexOptions>().BindConfiguration("OpenAlex");
         services.AddHostedService<KafkaTopicInitializerHostedService>();

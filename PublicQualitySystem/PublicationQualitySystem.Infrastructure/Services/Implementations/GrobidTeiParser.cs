@@ -72,22 +72,35 @@ public static partial class GrobidTeiParser
         var analytic = biblStruct.Element(Tei + "analytic");
         var monogr = biblStruct.Element(Tei + "monogr");
         var rawText = CleanText(biblStruct);
-        var title = CleanText(analytic?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "a")))
+        var structuredTitle = CleanText(analytic?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "a")))
             ?? CleanText(analytic?.Element(Tei + "title"))
-            ?? rawText;
+            ?? CleanText(monogr?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "m")));
+        var doi = NormalizeDoi(CleanText(biblStruct.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "DOI"))), logger)
+            ?? NormalizeDoi(ExtractDoiFromText(rawText), logger);
+        var publicationYear = ParseYear(monogr?.Descendants(Tei + "date").FirstOrDefault());
+        var volume = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "volume")));
+        var issue = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "issue")));
+        var pages = ParsePages(monogr);
+        var journal = CleanText(monogr?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "j")))
+            ?? CleanText(monogr?.Element(Tei + "title"));
+        var title = ReferenceNormalizer.CleanTitle(structuredTitle, rawText, journal, doi, publicationYear, volume, issue, pages);
+        var authors = ParseAuthors(analytic?.Elements(Tei + "author") ?? Enumerable.Empty<XElement>(), logger);
+        if (authors.Count == 0)
+        {
+            authors = ReferenceNormalizer.ExtractAuthors(rawText);
+        }
 
         return new ReferenceDto
         {
             Title = title,
-            Authors = ParseAuthors(analytic?.Elements(Tei + "author") ?? Enumerable.Empty<XElement>(), logger),
-            Journal = CleanText(monogr?.Elements(Tei + "title").FirstOrDefault(x => AttrEquals(x, "level", "j")))
-                ?? CleanText(monogr?.Element(Tei + "title")),
+            Authors = authors,
+            Journal = ReferenceNormalizer.NormalizeJournal(journal, title, rawText),
             Publisher = CleanText(monogr?.Descendants(Tei + "publisher").FirstOrDefault()),
-            Doi = NormalizeDoi(CleanText(biblStruct.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "DOI"))), logger),
-            PublicationYear = ParseYear(monogr?.Descendants(Tei + "date").FirstOrDefault()),
-            Volume = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "volume"))),
-            Issue = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "issue"))),
-            Pages = ParsePages(monogr),
+            Doi = doi,
+            PublicationYear = publicationYear,
+            Volume = volume,
+            Issue = issue,
+            Pages = pages,
             RawText = rawText
         };
     }

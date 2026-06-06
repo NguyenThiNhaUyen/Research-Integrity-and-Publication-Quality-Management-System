@@ -15,6 +15,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PaperVersion> PaperVersions => Set<PaperVersion>();
     public DbSet<PaperMetadata> PaperMetadata => Set<PaperMetadata>();
     public DbSet<PaperSimilarityCheck> PaperSimilarityChecks => Set<PaperSimilarityCheck>();
+    public DbSet<PaperDoiCheck> PaperDoiChecks => Set<PaperDoiCheck>();
+    public DbSet<PaperReferenceDoiCheck> PaperReferenceDoiChecks => Set<PaperReferenceDoiCheck>();
     public DbSet<PaperProcessingTracker> PaperProcessingTrackers => Set<PaperProcessingTracker>();
     public DbSet<PaperProcessingEvent> PaperProcessingEvents => Set<PaperProcessingEvent>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -45,6 +47,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             entity.ToTable("roles");
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Description).HasColumnName("description").HasMaxLength(500);
             entity.HasIndex(x => x.Name).IsUnique();
             entity.HasMany(x => x.Permissions).WithMany(x => x.Roles).UsingEntity<Dictionary<string, object>>(
                 "role_permissions",
@@ -56,6 +59,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             entity.ToTable("permissions");
             entity.Property(x => x.Name).IsRequired().HasMaxLength(100);
+            entity.Property(x => x.Description).HasColumnName("description").HasMaxLength(500);
             entity.HasIndex(x => x.Name).IsUnique();
         });
 
@@ -120,6 +124,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .IsRequired();
             entity.Property(x => x.AuthorsJson).HasColumnName("authors_json").HasColumnType("jsonb").IsRequired();
             entity.Property(x => x.ReferencesJson).HasColumnName("references_json").HasColumnType("jsonb").IsRequired();
+            entity.Property(x => x.RawMetadataJson).HasColumnName("raw_metadata_json").HasColumnType("jsonb");
+            entity.Property(x => x.NormalizedMetadataJson).HasColumnName("normalized_metadata_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataCleanlinessScore).HasColumnName("metadata_cleanliness_score");
+            entity.Property(x => x.ReferenceCleanlinessScore).HasColumnName("reference_cleanliness_score");
+            entity.Property(x => x.DirtyFieldCount).HasColumnName("dirty_field_count");
+            entity.Property(x => x.MetadataIssueCodesJson).HasColumnName("metadata_issue_codes_json").HasColumnType("jsonb");
+            entity.Property(x => x.MetadataWarningsJson).HasColumnName("metadata_warnings_json").HasColumnType("jsonb");
             entity.Property(x => x.RawGrobidXml).HasColumnName("raw_grobid_xml").HasColumnType("text");
             entity.Property(x => x.ExtractionStatus)
                 .HasColumnName("extraction_status")
@@ -184,6 +195,86 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasIndex(x => x.RiskLevel);
             entity.HasIndex(x => x.CheckedAt);
             entity.HasIndex(x => new { x.Source, x.PaperMetadataId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PaperDoiCheck>(entity =>
+        {
+            entity.ToTable("paper_doi_checks");
+            entity.Property(x => x.PaperId).HasColumnName("paper_id");
+            entity.Property(x => x.PaperMetadataId).HasColumnName("paper_metadata_id");
+            entity.Property(x => x.PaperVersionId).HasColumnName("paper_version_id");
+            entity.Property(x => x.MainDoi).HasColumnName("main_doi").HasMaxLength(255);
+            entity.Property(x => x.MainDoiStatus).HasColumnName("main_doi_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.MainDoiTitleSimilarity).HasColumnName("main_doi_title_similarity");
+            entity.Property(x => x.MainDoiYearMatched).HasColumnName("main_doi_year_matched");
+            entity.Property(x => x.MainDoiMatchedTitle).HasColumnName("main_doi_matched_title").HasMaxLength(1000);
+            entity.Property(x => x.MainDoiMatchedPublisher).HasColumnName("main_doi_matched_publisher").HasMaxLength(500);
+            entity.Property(x => x.MainDoiIssueCode).HasColumnName("main_doi_issue_code").HasMaxLength(100);
+            entity.Property(x => x.MainDoiIssueMessage).HasColumnName("main_doi_issue_message").HasMaxLength(1000);
+            entity.Property(x => x.MainDoiRawJson).HasColumnName("main_doi_raw_json").HasColumnType("jsonb");
+            entity.Property(x => x.TotalReferences).HasColumnName("total_references");
+            entity.Property(x => x.ReferencesWithDoi).HasColumnName("references_with_doi");
+            entity.Property(x => x.ReferencesMissingDoi).HasColumnName("references_missing_doi");
+            entity.Property(x => x.ValidReferenceDois).HasColumnName("valid_reference_dois");
+            entity.Property(x => x.InvalidReferenceDois).HasColumnName("invalid_reference_dois");
+            entity.Property(x => x.ReferenceDoiTitleMismatches).HasColumnName("reference_doi_title_mismatches");
+            entity.Property(x => x.ReferenceDoiCoveragePercent).HasColumnName("reference_doi_coverage_percent");
+            entity.Property(x => x.MissingReferenceAuthors).HasColumnName("missing_reference_authors");
+            entity.Property(x => x.MissingReferenceVenues).HasColumnName("missing_reference_venues");
+            entity.Property(x => x.LowConfidenceReferences).HasColumnName("low_confidence_references");
+            entity.Property(x => x.DuplicateReferences).HasColumnName("duplicate_references");
+            entity.Property(x => x.ReferenceCleanlinessIssues).HasColumnName("reference_cleanliness_issues");
+            entity.Property(x => x.ReferenceQualityScore).HasColumnName("reference_quality_score");
+            entity.Property(x => x.OverallScore).HasColumnName("overall_score");
+            entity.Property(x => x.RiskLevel).HasColumnName("risk_level").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.Status).HasColumnName("status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.ErrorMessage).HasColumnName("error_message").HasMaxLength(4000);
+            entity.Property(x => x.RawJson).HasColumnName("raw_json").HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
+            entity.Property(x => x.CheckedAt).HasColumnName("checked_at");
+            entity.HasOne(x => x.Paper).WithMany().HasForeignKey(x => x.PaperId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperMetadata).WithMany().HasForeignKey(x => x.PaperMetadataId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaperVersion).WithMany().HasForeignKey(x => x.PaperVersionId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasMany(x => x.ReferenceChecks).WithOne(x => x.PaperDoiCheck).HasForeignKey(x => x.PaperDoiCheckId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(x => x.PaperId);
+            entity.HasIndex(x => x.PaperMetadataId);
+            entity.HasIndex(x => x.PaperVersionId);
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.RiskLevel);
+        });
+
+        modelBuilder.Entity<PaperReferenceDoiCheck>(entity =>
+        {
+            entity.ToTable("paper_reference_doi_checks");
+            entity.Property(x => x.PaperDoiCheckId).HasColumnName("paper_doi_check_id");
+            entity.Property(x => x.ReferenceOrdinal).HasColumnName("reference_ordinal");
+            entity.Property(x => x.RawText).HasColumnName("raw_text").HasColumnType("text");
+            entity.Property(x => x.ExtractedDoi).HasColumnName("extracted_doi").HasMaxLength(255);
+            entity.Property(x => x.ExtractedTitle).HasColumnName("extracted_title").HasMaxLength(1000);
+            entity.Property(x => x.ExtractedYear).HasColumnName("extracted_year");
+            entity.Property(x => x.NormalizedTitle).HasColumnName("normalized_title").HasMaxLength(1000);
+            entity.Property(x => x.NormalizedDoi).HasColumnName("normalized_doi").HasMaxLength(255);
+            entity.Property(x => x.NormalizedJournal).HasColumnName("normalized_journal").HasMaxLength(500);
+            entity.Property(x => x.NormalizedYear).HasColumnName("normalized_year");
+            entity.Property(x => x.DoiFormatValid).HasColumnName("doi_format_valid");
+            entity.Property(x => x.ValidationSource).HasColumnName("validation_source").HasMaxLength(50);
+            entity.Property(x => x.ValidationStatus).HasColumnName("validation_status").HasConversion<string>().IsRequired().HasMaxLength(50);
+            entity.Property(x => x.MatchedDoi).HasColumnName("matched_doi").HasMaxLength(255);
+            entity.Property(x => x.MatchedTitle).HasColumnName("matched_title").HasMaxLength(1000);
+            entity.Property(x => x.MatchedPublisher).HasColumnName("matched_publisher").HasMaxLength(500);
+            entity.Property(x => x.MatchedYear).HasColumnName("matched_year");
+            entity.Property(x => x.TitleSimilarity).HasColumnName("title_similarity");
+            entity.Property(x => x.YearMatched).HasColumnName("year_matched");
+            entity.Property(x => x.IssueCode).HasColumnName("issue_code").HasMaxLength(100);
+            entity.Property(x => x.IssueMessage).HasColumnName("issue_message").HasMaxLength(1000);
+            entity.Property(x => x.MetadataCompletenessScore).HasColumnName("metadata_completeness_score");
+            entity.Property(x => x.ParseConfidenceScore).HasColumnName("parse_confidence_score");
+            entity.Property(x => x.IssueCodesJson).HasColumnName("issue_codes_json").HasColumnType("jsonb").HasDefaultValueSql("'[]'::jsonb").IsRequired();
+            entity.Property(x => x.RawJson).HasColumnName("raw_json").HasColumnType("jsonb").HasDefaultValueSql("'{}'::jsonb").IsRequired();
+            entity.Property(x => x.CheckedAt).HasColumnName("checked_at");
+            entity.HasIndex(x => x.PaperDoiCheckId);
+            entity.HasIndex(x => x.ExtractedDoi);
+            entity.HasIndex(x => x.NormalizedDoi);
+            entity.HasIndex(x => x.ValidationStatus);
         });
 
         modelBuilder.Entity<PaperProcessingTracker>(entity =>

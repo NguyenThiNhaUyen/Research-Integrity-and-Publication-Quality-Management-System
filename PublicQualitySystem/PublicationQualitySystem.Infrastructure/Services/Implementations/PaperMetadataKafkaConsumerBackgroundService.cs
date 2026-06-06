@@ -4,7 +4,10 @@ using Confluent.Kafka;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using PublicationQualitySystem.Application.DTOs.Crossref;
+using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.IntegrationEvents;
+using PublicationQualitySystem.Application.DTOs.Metadata;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
@@ -112,7 +115,9 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
         var storage = scope.ServiceProvider.GetRequiredService<IFileStorageService>();
         var grobid = scope.ServiceProvider.GetRequiredService<IGrobidService>();
         var crossref = scope.ServiceProvider.GetRequiredService<ICrossrefService>();
+        var metadataNormalizer = scope.ServiceProvider.GetRequiredService<IMetadataNormalizerService>();
         var qualityScoring = scope.ServiceProvider.GetRequiredService<IMetadataQualityScoringService>();
+        var doiCheck = scope.ServiceProvider.GetRequiredService<IPaperDoiCheckService>();
         var auditLog = scope.ServiceProvider.GetRequiredService<IAuditLogService>();
         var processingTracker = scope.ServiceProvider.GetRequiredService<IPaperProcessingTrackerService>();
 
@@ -190,6 +195,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                 extracted.Journal,
                 extracted.JournalSource);
 
+            var rawGrobidMetadata = JsonSerializer.Deserialize<GrobidMetadataResponse>(
+                JsonSerializer.Serialize(extracted, JsonOptions),
+                JsonOptions) ?? extracted;
+            rawGrobidMetadata.RawGrobidXml = string.Empty;
+            CrossrefMetadataResponse? crossrefMetadata = null;
             if (!string.IsNullOrWhiteSpace(extracted.Doi))
             {
                 await processingTracker.RecordStepStartedAsync(
@@ -197,7 +207,7 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                     ProcessingStage.METADATA_REQUESTED,
                     "CrossrefEnrichmentStarted",
                     cancellationToken: cancellationToken);
-                var crossrefMetadata = await crossref.GetWorkByDoiAsync(extracted.Doi, cancellationToken);
+                crossrefMetadata = await crossref.GetWorkByDoiAsync(extracted.Doi, cancellationToken);
                 extracted = ScholarlyMetadataMerger.Merge(extracted, crossrefMetadata);
                 if (crossrefMetadata is null)
                 {
@@ -231,27 +241,54 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                     cancellationToken);
             }
 
-            metadata.Title = extracted.Title;
-            metadata.Abstract = extracted.Abstract;
-            metadata.Doi = extracted.Doi;
-            metadata.ArxivId = extracted.ArxivId;
-            metadata.Journal = extracted.Journal;
-            metadata.Publisher = extracted.Publisher;
-            metadata.Venue = extracted.Venue;
-            metadata.ConferenceName = extracted.ConferenceName;
-            metadata.PublicationYear = extracted.PublicationYear;
-            metadata.Volume = extracted.Volume;
-            metadata.Issue = extracted.Issue;
-            metadata.Pages = extracted.Pages;
-            metadata.CorrespondingAuthor = extracted.CorrespondingAuthor;
-            metadata.MetadataSource = extracted.MetadataSource;
-            metadata.DoiSource = extracted.DoiSource;
-            metadata.JournalSource = extracted.JournalSource;
-            metadata.KeywordsJson = JsonSerializer.Serialize(extracted.Keywords, JsonOptions);
-            metadata.FundingOrganizationsJson = JsonSerializer.Serialize(extracted.FundingOrganizations, JsonOptions);
-            metadata.AuthorsJson = JsonSerializer.Serialize(extracted.Authors, JsonOptions);
-            metadata.ReferencesJson = JsonSerializer.Serialize(extracted.References, JsonOptions);
-            metadata.RawGrobidXml = extracted.RawGrobidXml;
+            var normalization = metadataNormalizer.Normalize(extracted, crossrefMetadata);
+            var normalized = normalization.Metadata;
+            metadata.Title = normalized.Title;
+            metadata.Abstract = normalized.Abstract;
+            metadata.Doi = normalized.Doi;
+            metadata.ArxivId = normalized.ArxivId;
+            metadata.Journal = normalized.Journal;
+            metadata.Publisher = normalized.Publisher;
+            metadata.Venue = normalized.Venue;
+            metadata.ConferenceName = normalized.ConferenceName;
+            metadata.PublicationYear = normalized.PublicationYear;
+            metadata.Volume = normalized.Volume;
+            metadata.Issue = normalized.Issue;
+            metadata.Pages = normalized.Pages;
+            metadata.CorrespondingAuthor = normalized.CorrespondingAuthor;
+            metadata.MetadataSource = normalized.MetadataSource;
+            metadata.DoiSource = normalized.DoiSource;
+            metadata.JournalSource = normalized.JournalSource;
+            metadata.KeywordsJson = JsonSerializer.Serialize(normalized.Keywords, JsonOptions);
+            metadata.FundingOrganizationsJson = JsonSerializer.Serialize(normalized.FundingOrganizations, JsonOptions);
+            metadata.AuthorsJson = JsonSerializer.Serialize(normalized.Authors, JsonOptions);
+            metadata.ReferencesJson = JsonSerializer.Serialize(normalized.References, JsonOptions);
+            metadata.RawMetadataJson = JsonSerializer.Serialize(new RawMetadataSnapshot
+            {
+                Grobid = rawGrobidMetadata,
+                Crossref = crossrefMetadata,
+                MetadataSource = extracted.MetadataSource
+            }, JsonOptions);
+            metadata.NormalizedMetadataJson = JsonSerializer.Serialize(new NormalizedMetadataSnapshot
+            {
+                Title = normalized.Title,
+                Doi = normalized.Doi,
+                Journal = normalized.Journal,
+                Publisher = normalized.Publisher,
+                Venue = normalized.Venue,
+                PublicationYear = normalized.PublicationYear,
+                Volume = normalized.Volume,
+                Issue = normalized.Issue,
+                Pages = normalized.Pages,
+                Keywords = normalized.Keywords,
+                References = normalized.References
+            }, JsonOptions);
+            metadata.MetadataCleanlinessScore = normalization.MainMetadataCleanlinessScore;
+            metadata.ReferenceCleanlinessScore = normalization.ReferenceCleanlinessScore;
+            metadata.DirtyFieldCount = normalization.DirtyFieldCount;
+            metadata.MetadataIssueCodesJson = JsonSerializer.Serialize(normalization.IssueCodes, JsonOptions);
+            metadata.MetadataWarningsJson = JsonSerializer.Serialize(normalization.WarningMessages, JsonOptions);
+            metadata.RawGrobidXml = normalized.RawGrobidXml;
             metadata.ExtractionStatus = MetadataExtractionStatus.Completed;
             metadata.ExtractionError = null;
             metadata.ExtractedAt = DateTime.UtcNow;
@@ -278,6 +315,13 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                     referenceCount = extracted.References.Count
                 },
                 cancellationToken: cancellationToken);
+
+            await doiCheck.RunAsync(
+                version.PaperId,
+                metadata.Id,
+                version.Id,
+                message.CorrelationId,
+                cancellationToken);
 
             await auditLog.StartStepAsync(
                 ProcessingStep.METADATA_QUALITY_SCORING,

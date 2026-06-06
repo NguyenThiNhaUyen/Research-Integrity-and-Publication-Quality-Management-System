@@ -1,0 +1,534 @@
+using System.Text.RegularExpressions;
+using PublicationQualitySystem.Application.DTOs.Grobid;
+using PublicationQualitySystem.Application.DTOs.References;
+using PublicationQualitySystem.Application.Services.Interfaces;
+
+namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
+
+public sealed partial class ReferenceNormalizer : IReferenceNormalizer
+{
+    private static readonly string[] KnownVenueTerms =
+    [
+        "IEEE",
+        "ACM",
+        "Elsevier",
+        "Springer",
+        "ETSI",
+        "Computer Networks",
+        "J. Supercomput",
+        "Journal of Supercomputing",
+        "IEEE Access",
+        "IEEE Trans.",
+        "IEEE Transactions on",
+        "IEEE Communications Magazine",
+        "IEEE Transactions",
+        "ACM Computing Surveys",
+        "Lecture Notes in Computer Science"
+    ];
+
+    public ReferenceDto Normalize(ReferenceDto reference) => NormalizeDetailed(reference).Reference;
+
+    public ReferenceNormalizationResult NormalizeDetailed(ReferenceDto reference)
+    {
+        var issues = new List<string>();
+        var warnings = new List<string>();
+        var normalizedDoi = NormalizeDoi(reference.Doi ?? ExtractDoi(reference.RawText));
+        var title = CleanTitle(reference.Title, reference.RawText, reference.Journal, normalizedDoi, reference.PublicationYear, reference.Volume, reference.Issue, reference.Pages);
+        var journal = NormalizeJournal(reference.Journal, title, reference.RawText);
+        var year = reference.PublicationYear ?? ExtractYear(reference.RawText);
+        var pages = NormalizePages(reference.Pages, reference.RawText, normalizedDoi, issues);
+        var authors = reference.Authors.Count > 0
+            ? reference.Authors
+            : ExtractAuthors(reference.RawText);
+        var authorConfidence = reference.Authors.Count > 0
+            ? 100
+            : CalculateAuthorConfidence(reference.RawText, authors);
+
+        if (string.IsNullOrWhiteSpace(normalizedDoi))
+        {
+            issues.Add("REFERENCE_DOI_MISSING");
+        }
+
+        if (IsTitlePolluted(reference.Title, title, reference.RawText))
+        {
+            issues.Add("REFERENCE_TITLE_POLLUTED");
+        }
+
+        if (reference.Authors.Count == 0 && authors.Count == 0)
+        {
+            issues.Add("REFERENCE_MISSING_AUTHOR");
+        }
+        else if (reference.Authors.Count == 0 && authorConfidence < 70)
+        {
+            authors = Array.Empty<AuthorDto>();
+            issues.Add("REFERENCE_AUTHOR_LOW_CONFIDENCE");
+            warnings.Add("Reference author prefix was detected but not trusted enough to write into canonical metadata.");
+        }
+
+        if (!reference.PublicationYear.HasValue && !year.HasValue)
+        {
+            issues.Add("REFERENCE_YEAR_MISSING");
+        }
+
+        if (IsJournalSuspect(reference.Journal, title) || (reference.Journal is not null && journal is null))
+        {
+            issues.Add("REFERENCE_JOURNAL_SUSPECT");
+        }
+
+        var normalized = new ReferenceDto
+        {
+            Title = title,
+            Authors = authors,
+            Journal = journal,
+            Publisher = NullIfWhiteSpace(reference.Publisher),
+            PublicationYear = year,
+            Volume = NullIfWhiteSpace(reference.Volume),
+            Issue = NullIfWhiteSpace(reference.Issue),
+            Pages = pages,
+            RawText = reference.RawText,
+            Doi = normalizedDoi
+        };
+
+        return new ReferenceNormalizationResult
+        {
+            Reference = normalized,
+            ParseConfidenceScore = CalculateParseConfidence(normalized, issues),
+            IssueCodes = issues.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+            WarningMessages = warnings
+        };
+    }
+
+    public string? NormalizeDoi(string? doi)
+    {
+        if (string.IsNullOrWhiteSpace(doi))
+        {
+            return null;
+        }
+
+        var value = doi.Trim()
+            .Replace("https://doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("http://doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("https://dx.doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("http://dx.doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("doi:", "", StringComparison.OrdinalIgnoreCase)
+            .Trim()
+            .TrimEnd('.', ',', ';', ')', ']')
+            .ToLowerInvariant();
+
+        return IsValidDoiFormat(value) ? value : NullIfWhiteSpace(value);
+    }
+
+    public bool IsValidDoiFormat(string? doi)
+    {
+        var value = doi?.Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        value = value
+            .Replace("https://doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("http://doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("https://dx.doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("http://dx.doi.org/", "", StringComparison.OrdinalIgnoreCase)
+            .Replace("doi:", "", StringComparison.OrdinalIgnoreCase)
+            .Trim();
+
+        return DoiRegex().IsMatch(value);
+    }
+
+    public static string? CleanTitle(
+        string? title,
+        string? rawText = null,
+        string? journal = null,
+        string? doi = null,
+        int? year = null,
+        string? volume = null,
+        string? issue = null,
+        string? pages = null)
+    {
+        var value = NullIfWhiteSpace(title);
+        if (string.IsNullOrWhiteSpace(value) || LooksLikeWholeReference(value))
+        {
+            value = ExtractLikelyTitle(rawText) ?? value;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        value = DoiInTextRegex().Replace(value, " ");
+        if (!string.IsNullOrWhiteSpace(doi))
+        {
+            value = value.Replace(doi, " ", StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var token in new[] { volume, issue, pages, year?.ToString() })
+        {
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                value = RemoveToken(value, token);
+            }
+        }
+
+        if (!IsSameComparableText(journal, value) && !string.IsNullOrWhiteSpace(journal))
+        {
+            value = RemoveToken(value, journal);
+        }
+
+        value = LeadingAuthorListRegex().Replace(value, " ");
+        value = TrailingNumericNoiseRegex().Replace(value, " ");
+        value = LeadingPunctuationRegex().Replace(value, " ");
+        value = OrphanPunctuationRegex().Replace(value, " ");
+        value = NormalizeSpaces(value);
+        return NullIfWhiteSpace(value);
+    }
+
+    public static IReadOnlyList<AuthorDto> ExtractAuthors(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return Array.Empty<AuthorDto>();
+        }
+
+        var prefix = rawText;
+        var dashIndex = prefix.IndexOf(" -", StringComparison.Ordinal);
+        if (dashIndex > 0)
+        {
+            prefix = prefix[..dashIndex];
+        }
+        else
+        {
+            var yearMatch = YearRegex().Match(prefix);
+            if (yearMatch.Success && yearMatch.Index > 0)
+            {
+                prefix = prefix[..yearMatch.Index];
+            }
+        }
+
+        prefix = NormalizeSpaces(prefix) ?? string.Empty;
+        if (prefix.Length > 250)
+        {
+            return Array.Empty<AuthorDto>();
+        }
+
+        var authors = new List<AuthorDto>();
+        foreach (Match match in CompactAuthorRegex().Matches(prefix))
+        {
+            var fullName = $"{match.Groups["initial"].Value} {match.Groups["surname"].Value}";
+            if (authors.All(x => !string.Equals(x.FullName, fullName, StringComparison.OrdinalIgnoreCase)))
+            {
+                authors.Add(new AuthorDto { FullName = fullName });
+            }
+        }
+
+        if (authors.Count > 0)
+        {
+            return authors;
+        }
+
+        var parts = prefix.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            var cleaned = NormalizeSpaces(part);
+            if (IsPlausibleAuthorName(cleaned))
+            {
+                authors.Add(new AuthorDto { FullName = cleaned });
+            }
+        }
+
+        return authors;
+    }
+
+    public static string? NormalizeJournal(string? journal, string? title, string? rawText)
+    {
+        var value = NullIfWhiteSpace(journal);
+        if (IsJournalSuspect(value, title))
+        {
+            value = null;
+        }
+
+        if (string.IsNullOrWhiteSpace(value) && !string.IsNullOrWhiteSpace(rawText))
+        {
+            value = KnownVenueTerms.FirstOrDefault(term => rawText.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return NullIfWhiteSpace(value);
+    }
+
+    private static string? ExtractDoi(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return null;
+        }
+
+        var match = DoiInTextRegex().Match(rawText);
+        return match.Success ? match.Groups["doi"].Value : null;
+    }
+
+    private static int? ExtractYear(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return null;
+        }
+
+        foreach (Match match in YearRegex().Matches(rawText))
+        {
+            if (IsInsideDoi(rawText, match.Index))
+            {
+                continue;
+            }
+
+            if (int.TryParse(match.Value, out var year)
+                && year >= 1900
+                && year <= DateTime.UtcNow.Year + 1)
+            {
+                return year;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ExtractLikelyTitle(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return null;
+        }
+
+        var value = NormalizeSpaces(rawText) ?? rawText;
+        var dashIndex = value.IndexOf(" -", StringComparison.Ordinal);
+        if (dashIndex >= 0 && dashIndex + 2 < value.Length)
+        {
+            value = value[(dashIndex + 2)..];
+        }
+
+        var yearMatch = YearRegex().Match(value);
+        if (yearMatch.Success && yearMatch.Index > 20)
+        {
+            value = value[..yearMatch.Index];
+        }
+
+        value = DoiInTextRegex().Replace(value, " ");
+        return NormalizeSpaces(value);
+    }
+
+    private static bool LooksLikeWholeReference(string value) =>
+        value.Length > 180
+        || DoiInTextRegex().IsMatch(value)
+        || TrailingNumericNoiseRegex().IsMatch(value)
+        || LeadingAuthorListRegex().IsMatch(value);
+
+    private static string? NormalizePages(string? pages, string? rawText, string? doi, List<string> issues)
+    {
+        var value = NullIfWhiteSpace(pages);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        value = value.Trim().Trim(',', ';', '.');
+        var looksLikeDoiFragment = !string.IsNullOrWhiteSpace(doi)
+            && doi.Contains(value, StringComparison.OrdinalIgnoreCase)
+            && !StandaloneArticleNumberRegex().IsMatch(value);
+        if (looksLikeDoiFragment || DoiSuffixPageFragmentRegex().IsMatch(value))
+        {
+            issues.Add("REFERENCE_PAGES_SUSPECT");
+            return null;
+        }
+
+        if (SafePagesRegex().IsMatch(value))
+        {
+            return value;
+        }
+
+        issues.Add("REFERENCE_PAGES_SUSPECT");
+        return null;
+    }
+
+    private static bool IsTitlePolluted(string? originalTitle, string? normalizedTitle, string? rawText) =>
+        !string.IsNullOrWhiteSpace(originalTitle)
+        && !string.Equals(originalTitle, normalizedTitle, StringComparison.Ordinal)
+        && (originalTitle.Length > 180
+            || DoiInTextRegex().IsMatch(originalTitle)
+            || TrailingNumericNoiseRegex().IsMatch(originalTitle)
+            || (!string.IsNullOrWhiteSpace(rawText) && originalTitle.Length > (normalizedTitle?.Length ?? 0) + 30));
+
+    private static bool IsJournalSuspect(string? journal, string? title)
+    {
+        if (string.IsNullOrWhiteSpace(journal) || string.IsNullOrWhiteSpace(title))
+        {
+            return false;
+        }
+
+        var normalizedJournal = NormalizeComparable(journal);
+        var normalizedTitle = NormalizeComparable(title);
+        if (normalizedJournal.Length == 0 || normalizedTitle.Length == 0)
+        {
+            return false;
+        }
+
+        return normalizedJournal == normalizedTitle
+            || normalizedJournal.Contains(normalizedTitle, StringComparison.OrdinalIgnoreCase)
+            || normalizedTitle.Contains(normalizedJournal, StringComparison.OrdinalIgnoreCase)
+            || CalculateTokenOverlap(normalizedJournal, normalizedTitle) >= 0.75;
+    }
+
+    private static bool IsSameComparableText(string? left, string? right) =>
+        !string.IsNullOrWhiteSpace(left)
+        && !string.IsNullOrWhiteSpace(right)
+        && NormalizeComparable(left) == NormalizeComparable(right);
+
+    private static double CalculateTokenOverlap(string left, string right)
+    {
+        var leftTokens = left.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rightTokens = right.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (leftTokens.Count == 0 || rightTokens.Count == 0)
+        {
+            return 0;
+        }
+
+        var denominator = Math.Min(leftTokens.Count, rightTokens.Count);
+        leftTokens.IntersectWith(rightTokens);
+        return leftTokens.Count * 1.0 / denominator;
+    }
+
+    private static string NormalizeComparable(string value) =>
+        string.Join(" ", value.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    private static int CalculateAuthorConfidence(string? rawText, IReadOnlyList<AuthorDto> authors)
+    {
+        if (authors.Count == 0)
+        {
+            return 0;
+        }
+
+        if (authors.Count >= 2)
+        {
+            return IsSentenceLikeAuthorPrefix(rawText) ? 50 : 80;
+        }
+
+        var authorName = authors[0].FullName;
+        if (!string.IsNullOrWhiteSpace(rawText)
+            && !string.IsNullOrWhiteSpace(authorName)
+            && rawText.StartsWith(authorName.Replace(" ", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase))
+        {
+            return 75;
+        }
+
+        return 65;
+    }
+
+    private static bool IsSentenceLikeAuthorPrefix(string? rawText)
+    {
+        if (string.IsNullOrWhiteSpace(rawText))
+        {
+            return false;
+        }
+
+        var prefix = rawText.Split(['-', '.'], StringSplitOptions.TrimEntries).FirstOrDefault() ?? rawText;
+        return prefix.Contains(" but ", StringComparison.OrdinalIgnoreCase)
+            || prefix.Contains(" also ", StringComparison.OrdinalIgnoreCase)
+            || prefix.Contains(" possibly ", StringComparison.OrdinalIgnoreCase)
+            || prefix.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length > 12;
+    }
+
+    private static double CalculateParseConfidence(ReferenceDto reference, IReadOnlyList<string> issues)
+    {
+        var score = 100;
+        score -= issues.Count(issue => issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_PAGES_SUSPECT") * 15;
+        score -= issues.Count(issue => issue is "REFERENCE_MISSING_AUTHOR" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_YEAR_MISSING") * 20;
+        if (string.IsNullOrWhiteSpace(reference.Title))
+        {
+            score -= 30;
+        }
+
+        return Math.Clamp(score, 0, 100);
+    }
+
+    private static bool IsInsideDoi(string rawText, int index)
+    {
+        foreach (Match doiMatch in DoiInTextRegex().Matches(rawText))
+        {
+            if (index >= doiMatch.Index && index < doiMatch.Index + doiMatch.Length)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string RemoveToken(string value, string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return value;
+        }
+
+        return value.Replace(token, " ", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPlausibleAuthorName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var words = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words is { Length: >= 2 and <= 5 }
+            && words.All(word => word.Any(char.IsLetter))
+            && !KnownVenueTerms.Any(term => value.Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? NormalizeSpaces(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return NullIfWhiteSpace(string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)));
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    [GeneratedRegex(@"(?<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DoiRegex();
+
+    [GeneratedRegex(@"(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?(?<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DoiInTextRegex();
+
+    [GeneratedRegex(@"\b(?:19|20)\d{2}\b", RegexOptions.CultureInvariant)]
+    private static partial Regex YearRegex();
+
+    [GeneratedRegex(@"\b(?<initial>[A-Z])\.?\s*(?<surname>[A-Z][a-z]{2,})\b", RegexOptions.CultureInvariant)]
+    private static partial Regex CompactAuthorRegex();
+
+    [GeneratedRegex(@"^(?:[A-Z]\.?\s*[A-Z][a-z]+\s*){2,}", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingAuthorListRegex();
+
+    [GeneratedRegex(@"\b(?:19|20)\d{2}\b.*\b\d{1,4}\b.*\b\d{1,6}\b", RegexOptions.CultureInvariant)]
+    private static partial Regex TrailingNumericNoiseRegex();
+
+    [GeneratedRegex(@"^[\s\-–—:;,.]+", RegexOptions.CultureInvariant)]
+    private static partial Regex LeadingPunctuationRegex();
+
+    [GeneratedRegex(@"\s+[.]\s*(?:[.]\s*)*$", RegexOptions.CultureInvariant)]
+    private static partial Regex OrphanPunctuationRegex();
+
+    [GeneratedRegex(@"^\d{1,6}(?:-\d{1,6})?$", RegexOptions.CultureInvariant)]
+    private static partial Regex SafePagesRegex();
+
+    [GeneratedRegex(@"^\d{5,6}$", RegexOptions.CultureInvariant)]
+    private static partial Regex StandaloneArticleNumberRegex();
+
+    [GeneratedRegex(@"^[A-Z0-9._;()/:/-]*[A-Z][A-Z0-9._;()/:/-]*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex DoiSuffixPageFragmentRegex();
+}

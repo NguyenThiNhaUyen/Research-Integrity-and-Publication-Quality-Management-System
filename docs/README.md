@@ -4,6 +4,7 @@
 
 - [Architecture Review](architecture-review.md)
 - [API Inventory](api-inventory.md)
+- [DOI Integrity Flow](doi-integrity-flow.md)
 - [Modular Monolith Refactor](modular-monolith-refactor.md)
 - [Task Plan](task-plan.md)
 

@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using PublicationQualitySystem.Api.Common;
 using PublicationQualitySystem.Application.DTOs.Audit;
+using PublicationQualitySystem.Application.DTOs.Doi;
+using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.Paper;
 using PublicationQualitySystem.Application.DTOs.Processing;
 using PublicationQualitySystem.Application.Services.Interfaces;
@@ -14,6 +16,7 @@ public class PaperController(
     IPaperService paperService,
     IAuditLogService auditLogService,
     IPaperProcessingTrackerService processingTrackerService,
+    IPaperDoiCheckService paperDoiCheckService,
     ILogger<PaperController> logger) : ApiBaseController
 {
     [HttpPost("upload")]
@@ -97,5 +100,43 @@ public class PaperController(
         var result = await processingTrackerService.GetByPaperIdAsync(paperId, cancellationToken);
 
         return OkResponse(result, "Success");
+    }
+
+    [HttpGet("{paperId:long}/doi-check")]
+    [HttpGet("{paperId:long}/references/quality")]
+    public async Task<ActionResult<BaseResponse<PaperDoiCheckResponse>>> GetDoiCheck(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Paper DOI check request received. PaperId={PaperId}", paperId);
+
+        var result = await paperDoiCheckService.GetByPaperIdAsync(paperId, cancellationToken);
+
+        return OkResponse(result, "Success");
+    }
+
+    [HttpGet("{paperId:long}/doi-check/summary")]
+    [HttpGet("{paperId:long}/references/quality/summary")]
+    public async Task<ActionResult<BaseResponse<PaperDoiCheckSummaryResponse>>> GetDoiCheckSummary(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Paper DOI check summary request received. PaperId={PaperId}", paperId);
+
+        var result = await paperDoiCheckService.GetSummaryByPaperIdAsync(paperId, cancellationToken);
+
+        return OkResponse(result, "Success");
+    }
+
+    [HttpGet("{paperId:long}/references")]
+    public async Task<ActionResult<BaseResponse<IReadOnlyList<ReferenceDto>>>> GetReferences(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Paper references request received. PaperId={PaperId}", paperId);
+
+        var metadata = await paperService.GetMetadataAsync(paperId, cancellationToken);
+
+        return OkResponse(metadata.References, "Success");
     }
 }

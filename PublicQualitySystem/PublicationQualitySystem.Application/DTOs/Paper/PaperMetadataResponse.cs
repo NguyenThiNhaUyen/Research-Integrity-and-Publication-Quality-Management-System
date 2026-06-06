@@ -24,6 +24,13 @@ public class PaperMetadataResponse
     public string? MetadataSource { get; set; }
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }
+    public RawMetadataSnapshot? RawMetadata { get; set; }
+    public NormalizedMetadataSnapshot? NormalizedMetadata { get; set; }
+    public int? MainMetadataCleanlinessScore { get; set; }
+    public int? ReferenceCleanlinessScore { get; set; }
+    public int? DirtyFieldCount { get; set; }
+    public IReadOnlyList<string> IssueCodes { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> WarningMessages { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> Keywords { get; set; } = Array.Empty<string>();
     public IReadOnlyList<string> FundingOrganizations { get; set; } = Array.Empty<string>();
     public IReadOnlyList<ReferenceDto> References { get; set; } = Array.Empty<ReferenceDto>();

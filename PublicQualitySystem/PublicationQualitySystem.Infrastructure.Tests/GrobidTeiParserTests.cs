@@ -413,4 +413,49 @@ public class GrobidTeiParserTests
             "Department of Computer Science, Universidad de Castilla-La Mancha, Albacete, Spain; Smart Networks Lab, Toledo, Spain",
             metadata.Authors[0].Affiliation);
     }
+
+    [Fact]
+    public void ParseReference_CleansPollutedRawReferenceTitleAndExtractsAuthors()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <fileDesc>
+                  <sourceDesc>
+                    <biblStruct>
+                      <analytic>
+                        <title level="a">Paper</title>
+                      </analytic>
+                    </biblStruct>
+                  </sourceDesc>
+                </fileDesc>
+              </teiHeader>
+              <text>
+                <back>
+                  <listBibl>
+                    <biblStruct>
+                      <analytic>
+                        <title level="a">SRedana OBulakci CMannweiler 5G PPP Architecture Working Group -View on 5G architecture 2019. 2024 252 110675 Version 3.0. Computer Networks</title>
+                      </analytic>
+                      <monogr>
+                        <title level="j">Computer Networks</title>
+                        <imprint>
+                          <date when="2019"/>
+                        </imprint>
+                      </monogr>
+                    </biblStruct>
+                  </listBibl>
+                </back>
+              </text>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+        var reference = Assert.Single(metadata.References);
+
+        Assert.Equal("View on 5G architecture", reference.Title);
+        Assert.Equal("Computer Networks", reference.Journal);
+        Assert.Equal(2019, reference.PublicationYear);
+        Assert.Contains(reference.Authors, author => author.FullName == "S Redana");
+    }
 }

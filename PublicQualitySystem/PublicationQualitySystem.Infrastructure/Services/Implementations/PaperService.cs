@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.IntegrationEvents;
+using PublicationQualitySystem.Application.DTOs.Metadata;
 using PublicationQualitySystem.Application.DTOs.Paper;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
@@ -333,6 +334,13 @@ public class PaperService(
             MetadataSource = metadata.MetadataSource,
             DoiSource = metadata.DoiSource,
             JournalSource = metadata.JournalSource,
+            RawMetadata = DeserializeJson<RawMetadataSnapshot>(metadata.RawMetadataJson),
+            NormalizedMetadata = DeserializeJson<NormalizedMetadataSnapshot>(metadata.NormalizedMetadataJson),
+            MainMetadataCleanlinessScore = metadata.MetadataCleanlinessScore,
+            ReferenceCleanlinessScore = metadata.ReferenceCleanlinessScore,
+            DirtyFieldCount = metadata.DirtyFieldCount,
+            IssueCodes = DeserializeJson<IReadOnlyList<string>>(metadata.MetadataIssueCodesJson) ?? Array.Empty<string>(),
+            WarningMessages = DeserializeJson<IReadOnlyList<string>>(metadata.MetadataWarningsJson) ?? Array.Empty<string>(),
             Keywords = DeserializeJson<IReadOnlyList<string>>(metadata.KeywordsJson) ?? Array.Empty<string>(),
             FundingOrganizations = DeserializeJson<IReadOnlyList<string>>(metadata.FundingOrganizationsJson) ?? Array.Empty<string>(),
             References = DeserializeJson<IReadOnlyList<ReferenceDto>>(metadata.ReferencesJson) ?? Array.Empty<ReferenceDto>(),
@@ -367,7 +375,7 @@ public class PaperService(
         ConversionError = version.ConversionError
     };
 
-    private static T? DeserializeJson<T>(string json)
+    private static T? DeserializeJson<T>(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {

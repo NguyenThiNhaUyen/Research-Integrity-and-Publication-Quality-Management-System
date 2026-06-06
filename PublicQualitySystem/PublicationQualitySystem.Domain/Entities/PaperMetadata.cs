@@ -27,6 +27,13 @@ public class PaperMetadata : BaseEntity
     public string FundingOrganizationsJson { get; set; } = "[]";
     public string AuthorsJson { get; set; } = "[]";
     public string ReferencesJson { get; set; } = "[]";
+    public string? RawMetadataJson { get; set; }
+    public string? NormalizedMetadataJson { get; set; }
+    public int? MetadataCleanlinessScore { get; set; }
+    public int? ReferenceCleanlinessScore { get; set; }
+    public int? DirtyFieldCount { get; set; }
+    public string? MetadataIssueCodesJson { get; set; }
+    public string? MetadataWarningsJson { get; set; }
     public string? RawGrobidXml { get; set; }
     public MetadataExtractionStatus ExtractionStatus { get; set; } = MetadataExtractionStatus.Pending;
     public string? ExtractionError { get; set; }
