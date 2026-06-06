@@ -13,5 +13,6 @@ public class CrossrefMetadataResponse
     public string? Volume { get; set; }
     public string? Issue { get; set; }
     public string? Pages { get; set; }
+    public DateOnly? PublishedDate { get; set; }
     public IReadOnlyList<AuthorDto> Authors { get; set; } = Array.Empty<AuthorDto>();
 }

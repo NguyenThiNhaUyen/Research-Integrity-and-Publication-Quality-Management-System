@@ -61,6 +61,11 @@ public static partial class GrobidTeiParser
             Issue = CleanText(monogr?.Descendants(Tei + "biblScope").FirstOrDefault(x => AttrEquals(x, "unit", "issue"))),
             Pages = ParsePages(monogr),
             CorrespondingAuthor = ParseCorrespondingAuthor(analytic),
+            ReceivedDate = ParseLifecycleDate(tei, "received"),
+            RevisedDate = ParseLifecycleDate(tei, "revised"),
+            AcceptedDate = ParseLifecycleDate(tei, "accepted"),
+            PublishedDate = ParseLifecycleDate(tei, "published") ?? ParseLifecycleDate(tei, "online"),
+            OpenAccessLicense = ParseLicense(tei),
             Keywords = ParseKeywords(tei),
             FundingOrganizations = ParseFundingOrganizations(fileDesc),
             References = references
@@ -161,6 +166,12 @@ public static partial class GrobidTeiParser
             MiddleName = middleName,
             LastName = lastName,
             FullName = fullName,
+            Orcid = NormalizeOrcid(CleanText(author.Descendants(Tei + "idno").FirstOrDefault(x => AttrEquals(x, "type", "ORCID")))
+                ?? ExtractOrcidFromText(CleanText(author))),
+            RawAuthorName = CleanText(persName),
+            IsCorresponding = AttrEquals(author, "role", "corresp")
+                || AttrEquals(author, "corresp", "yes")
+                || string.Equals((string?)author.Attribute("corresp"), "true", StringComparison.OrdinalIgnoreCase),
             Email = CleanText(author.Descendants(Tei + "email").FirstOrDefault()),
             Affiliation = FormatAffiliations(author.Elements(Tei + "affiliation"))
         };
@@ -384,6 +395,102 @@ public static partial class GrobidTeiParser
             : NullIfWhiteSpace(from);
     }
 
+    private static DateOnly? ParseLifecycleDate(XElement tei, string lifecycle)
+    {
+        foreach (var date in tei.Descendants(Tei + "date"))
+        {
+            var type = ((string?)date.Attribute("type")
+                ?? (string?)date.Attribute("subtype")
+                ?? (string?)date.Attribute("ana")
+                ?? (string?)date.Attribute("n")
+                ?? string.Empty).TrimStart('#');
+            var label = CleanText(date.Parent) ?? CleanText(date) ?? string.Empty;
+            if (!type.Contains(lifecycle, StringComparison.OrdinalIgnoreCase)
+                && !label.Contains(lifecycle, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var parsed = ParseDateOnly(date);
+            if (parsed.HasValue)
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static DateOnly? ParseDateOnly(XElement date)
+    {
+        var value = (string?)date.Attribute("when")
+            ?? (string?)date.Attribute("notBefore")
+            ?? CleanText(date);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParse(value, out var parsed))
+        {
+            return parsed;
+        }
+
+        var match = DateRegex().Match(value);
+        return match.Success && DateOnly.TryParse(match.Value, out parsed) ? parsed : null;
+    }
+
+    private static string? ParseLicense(XElement tei)
+    {
+        var licenseText = tei.Descendants(Tei + "licence")
+            .Select(x => CleanText(x) ?? (string?)x.Attribute("target"))
+            .FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+        licenseText ??= tei.Descendants(Tei + "availability").Select(CleanText).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+        licenseText ??= ExtractLicenseFromText(CleanText(tei));
+        if (string.IsNullOrWhiteSpace(licenseText))
+        {
+            return null;
+        }
+
+        return licenseText.Contains("creativecommons.org/licenses/by/4.0", StringComparison.OrdinalIgnoreCase)
+            || licenseText.Contains("CC BY 4.0", StringComparison.OrdinalIgnoreCase)
+            || licenseText.Contains("Creative Commons Attribution 4.0", StringComparison.OrdinalIgnoreCase)
+            ? "CC BY 4.0"
+            : licenseText;
+    }
+
+    private static string? ExtractLicenseFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        return CcByRegex().IsMatch(text) ? "CC BY 4.0" : null;
+    }
+
+    private static string? ExtractOrcidFromText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var match = OrcidRegex().Match(text);
+        return match.Success ? NormalizeOrcid(match.Groups["orcid"].Value) : null;
+    }
+
+    private static string? NormalizeOrcid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var match = OrcidRegex().Match(value);
+        return match.Success ? match.Groups["orcid"].Value : null;
+    }
+
     private static string? ParseCorrespondingAuthor(XElement? analytic)
     {
         var author = analytic?.Elements(Tei + "author")
@@ -484,4 +591,13 @@ public static partial class GrobidTeiParser
 
     [GeneratedRegex(@"(?:https?://(?:dx\.)?doi\.org/|doi:\s*)?(?<doi>10\.\d{4,9}/[-._;()/:A-Z0-9]+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex DoiRegex();
+
+    [GeneratedRegex(@"\d{4}-\d{2}-\d{2}", RegexOptions.CultureInvariant)]
+    private static partial Regex DateRegex();
+
+    [GeneratedRegex(@"(?<orcid>\d{4}-\d{4}-\d{4}-[\dX]{4})", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex OrcidRegex();
+
+    [GeneratedRegex(@"(?:CC\s*BY\s*4\.0|creativecommons\.org/licenses/by/4\.0|Creative Commons Attribution 4\.0)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex CcByRegex();
 }

@@ -5,6 +5,58 @@ namespace PublicationQualitySystem.Infrastructure.Tests;
 public class GrobidTeiParserTests
 {
     [Fact]
+    public void Parse_ExtractsLifecycleDatesLicenseAndOrcid()
+    {
+        const string xml = """
+            <TEI xmlns="http://www.tei-c.org/ns/1.0">
+              <teiHeader>
+                <fileDesc>
+                  <titleStmt>
+                    <title>Lifecycle Paper</title>
+                  </titleStmt>
+                  <publicationStmt>
+                    <availability>
+                      <licence target="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</licence>
+                    </availability>
+                  </publicationStmt>
+                  <sourceDesc>
+                    <biblStruct>
+                      <analytic>
+                        <title level="a">Lifecycle Paper</title>
+                        <author>
+                          <persName>
+                            <forename>Ada</forename>
+                            <surname>Lovelace</surname>
+                          </persName>
+                          <idno type="ORCID">https://orcid.org/0000-0002-1825-0097</idno>
+                        </author>
+                      </analytic>
+                      <monogr>
+                        <imprint>
+                          <date type="received" when="2024-01-02"/>
+                          <date type="revised" when="2024-02-03"/>
+                          <date type="accepted" when="2024-03-04"/>
+                          <date type="published" when="2024-04-05"/>
+                        </imprint>
+                      </monogr>
+                    </biblStruct>
+                  </sourceDesc>
+                </fileDesc>
+              </teiHeader>
+            </TEI>
+            """;
+
+        var metadata = GrobidTeiParser.Parse(xml);
+
+        Assert.Equal(new DateOnly(2024, 1, 2), metadata.ReceivedDate);
+        Assert.Equal(new DateOnly(2024, 2, 3), metadata.RevisedDate);
+        Assert.Equal(new DateOnly(2024, 3, 4), metadata.AcceptedDate);
+        Assert.Equal(new DateOnly(2024, 4, 5), metadata.PublishedDate);
+        Assert.Equal("CC BY 4.0", metadata.OpenAccessLicense);
+        Assert.Equal("0000-0002-1825-0097", Assert.Single(metadata.Authors).Orcid);
+    }
+
+    [Fact]
     public void Parse_CleansScientificPaperMetadata()
     {
         const string xml = """

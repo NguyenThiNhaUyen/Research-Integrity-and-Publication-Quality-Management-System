@@ -30,6 +30,15 @@ public class ReferenceQualityServiceTests
     }
 
     [Fact]
+    public void ExtractAuthors_PreservesParticleSurname()
+    {
+        var authors = ReferenceNormalizer.ExtractAuthors("Eyal de Lara - The internet of tomorrow must sleep more and grow old. 2023.");
+
+        var author = Assert.Single(authors);
+        Assert.Equal("Eyal de Lara", author.FullName);
+    }
+
+    [Fact]
     public void Evaluate_DetectsMissingAuthorAndVenue()
     {
         var service = new ReferenceQualityService(normalizer);

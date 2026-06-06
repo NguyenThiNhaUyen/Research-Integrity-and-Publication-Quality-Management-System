@@ -113,6 +113,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.Issue).HasColumnName("issue").HasMaxLength(100);
             entity.Property(x => x.Pages).HasColumnName("pages").HasMaxLength(100);
             entity.Property(x => x.CorrespondingAuthor).HasColumnName("corresponding_author").HasMaxLength(500);
+            entity.Property(x => x.ReceivedDate).HasColumnName("received_date").HasColumnType("date");
+            entity.Property(x => x.RevisedDate).HasColumnName("revised_date").HasColumnType("date");
+            entity.Property(x => x.AcceptedDate).HasColumnName("accepted_date").HasColumnType("date");
+            entity.Property(x => x.PublishedDate).HasColumnName("published_date").HasColumnType("date");
+            entity.Property(x => x.OpenAccessLicense).HasColumnName("open_access_license").HasMaxLength(255);
             entity.Property(x => x.MetadataSource).HasColumnName("metadata_source").HasMaxLength(100);
             entity.Property(x => x.DoiSource).HasColumnName("doi_source").HasMaxLength(100);
             entity.Property(x => x.JournalSource).HasColumnName("journal_source").HasMaxLength(100);

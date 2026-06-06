@@ -10,12 +10,13 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
     {
         var normalization = normalizer.NormalizeDetailed(reference);
         var normalized = normalization.Reference;
-        var issues = new List<string>(normalization.IssueCodes);
+        var issues = new List<string>(normalization.IssueCodes.Concat(normalized.IssueCodes));
 
         var hasTitle = !string.IsNullOrWhiteSpace(normalized.Title);
         var hasAuthor = normalized.Authors.Count > 0;
         var hasYear = normalized.PublicationYear.HasValue;
-        var hasVenue = !string.IsNullOrWhiteSpace(normalized.Journal) || !string.IsNullOrWhiteSpace(normalized.Publisher);
+        var boundarySuspect = issues.Contains("REFERENCE_BOUNDARY_SUSPECT");
+        var hasVenue = !boundarySuspect && (!string.IsNullOrWhiteSpace(normalized.Journal) || !string.IsNullOrWhiteSpace(normalized.Publisher));
         var hasDoi = !string.IsNullOrWhiteSpace(normalized.Doi);
         var doiFormatValid = !hasDoi || normalizer.IsValidDoiFormat(normalized.Doi);
 
@@ -71,7 +72,7 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
             MetadataCompletenessScore = completeness,
             ParseConfidenceScore = confidence,
             IssueCodes = issues.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            WarningMessages = normalization.WarningMessages
+            WarningMessages = normalization.WarningMessages.Concat(normalized.WarningMessages).ToArray()
         };
     }
 
@@ -92,7 +93,7 @@ public sealed class ReferenceQualityService(IReferenceNormalizer normalizer) : I
         var doiValidation = referencesWithDoi == 0 ? 0 : validDoiCount * 100.0 / Math.Max(referencesWithDoi, 1) * 0.20;
         var titleYearMatch = Math.Max(0, 100 - (titleMismatchCount * 10)) * 0.10;
         var cleanlinessIssues = references.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT"));
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
         var cleanliness = Math.Max(0, 100 - (cleanlinessIssues * 10) - (invalidDoiCount * 5)) * 0.10;
 
         return Math.Clamp((int)Math.Round(completeness + doiCoverage + doiValidation + titleYearMatch + cleanliness), 0, 100);

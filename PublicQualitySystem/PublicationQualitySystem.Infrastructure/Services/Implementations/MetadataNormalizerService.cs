@@ -25,7 +25,13 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
 
         var publisher = NormalizePublisher(metadata.Publisher, crossrefMetadata?.Publisher, normalizedDoi, issues, warnings, ref dirtyFields);
         var keywords = NormalizeKeywords(metadata.Keywords, issues, warnings, ref dirtyFields);
-        var references = NormalizeReferences(metadata.References, out var referenceResults);
+        var references = NormalizeReferences(
+            metadata.References,
+            metadata.Title,
+            metadata.Journal,
+            metadata.Volume,
+            metadata.Pages,
+            out var referenceResults);
         var journal = NormalizeJournal(metadata.Journal, metadata.Title, metadata.Venue, crossrefMetadata?.Journal, ref dirtyFields);
         var pages = NormalizePages(metadata.Pages, normalizedDoi, issues, ref dirtyFields);
         var publicationYear = NormalizePublicationYear(metadata.PublicationYear ?? crossrefMetadata?.PublicationYear, ref dirtyFields);
@@ -46,6 +52,11 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
             Issue = NormalizeSimpleToken(metadata.Issue),
             Pages = pages,
             CorrespondingAuthor = NormalizeSpaces(metadata.CorrespondingAuthor),
+            ReceivedDate = metadata.ReceivedDate,
+            RevisedDate = metadata.RevisedDate,
+            AcceptedDate = metadata.AcceptedDate,
+            PublishedDate = metadata.PublishedDate ?? crossrefMetadata?.PublishedDate,
+            OpenAccessLicense = NormalizeLicense(metadata.OpenAccessLicense),
             MetadataSource = metadata.MetadataSource,
             DoiSource = metadata.DoiSource,
             JournalSource = metadata.JournalSource,
@@ -138,6 +149,10 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
 
     private IReadOnlyList<ReferenceDto> NormalizeReferences(
         IReadOnlyList<ReferenceDto> references,
+        string? metadataTitle,
+        string? parentJournal,
+        string? parentVolume,
+        string? parentPages,
         out IReadOnlyList<ReferenceQualityResult> referenceResults)
     {
         var results = references
@@ -145,11 +160,16 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
             {
                 var normalization = referenceNormalizer.NormalizeDetailed(reference);
                 var normalized = normalization.Reference;
+                var boundarySuspect = ApplyParentBoundaryCheck(normalized, metadataTitle, parentJournal, parentVolume, parentPages);
                 var hasTitle = !string.IsNullOrWhiteSpace(normalized.Title);
                 var hasAuthor = normalized.Authors.Count > 0;
                 var hasYear = normalized.PublicationYear.HasValue;
-                var hasVenue = !string.IsNullOrWhiteSpace(normalized.Journal) || !string.IsNullOrWhiteSpace(normalized.Publisher);
+                var hasVenue = !boundarySuspect && (!string.IsNullOrWhiteSpace(normalized.Journal) || !string.IsNullOrWhiteSpace(normalized.Publisher));
                 var hasDoi = !string.IsNullOrWhiteSpace(normalized.Doi);
+                var issueCodes = normalization.IssueCodes
+                    .Concat(normalized.IssueCodes)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
 
                 return new ReferenceQualityResult
                 {
@@ -161,14 +181,38 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
                     DoiFormatValid = !hasDoi || referenceNormalizer.IsValidDoiFormat(normalized.Doi),
                     MetadataCompletenessScore = ReferenceQualityService.CalculateCompletenessScore(hasTitle, hasAuthor, hasYear, hasVenue, hasDoi),
                     ParseConfidenceScore = normalization.ParseConfidenceScore,
-                    IssueCodes = normalization.IssueCodes,
-                    WarningMessages = normalization.WarningMessages
+                    IssueCodes = issueCodes,
+                    WarningMessages = normalization.WarningMessages.Concat(normalized.WarningMessages).ToArray()
                 };
             })
             .ToArray();
 
         referenceResults = results;
         return results.Select(x => x.Reference).ToArray();
+    }
+
+    private static bool ApplyParentBoundaryCheck(ReferenceDto reference, string? metadataTitle, string? parentJournal, string? parentVolume, string? parentPages)
+    {
+        var titleIsMain = AreSameText(reference.Title, metadataTitle);
+        var missingDoi = string.IsNullOrWhiteSpace(reference.Doi);
+        var inherited = missingDoi
+            && !titleIsMain
+            && (AreSameText(reference.Journal, parentJournal)
+                || AreSameText(reference.Volume, parentVolume)
+                || AreSameText(reference.Pages, parentPages));
+        if (!inherited)
+        {
+            return false;
+        }
+
+        reference.IssueCodes = reference.IssueCodes
+            .Append("REFERENCE_BOUNDARY_SUSPECT")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        reference.WarningMessages = reference.WarningMessages
+            .Append("Reference journal/volume/pages look inherited from the main paper and are excluded from quality scoring.")
+            .ToArray();
+        return true;
     }
 
     private static string? NormalizeJournal(string? journal, string? title, string? venue, string? crossrefJournal, ref int dirtyFields)
@@ -296,6 +340,32 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
     private static string? NormalizeSimpleToken(string? value) =>
         NormalizeSpaces(value)?.Trim(',', ';', '.');
 
+    private static string? NormalizeLicense(string? license)
+    {
+        var value = NormalizeSpaces(license);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (value.Contains("creativecommons.org/licenses/by/4.0", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("CC BY 4.0", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("Creative Commons Attribution 4.0", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CC BY 4.0";
+        }
+
+        return value;
+    }
+
+    private static bool AreSameText(string? left, string? right) =>
+        !string.IsNullOrWhiteSpace(left)
+        && !string.IsNullOrWhiteSpace(right)
+        && string.Equals(NormalizeComparable(left), NormalizeComparable(right), StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizeComparable(string value) =>
+        Regex.Replace(value.ToLowerInvariant(), @"\s+", " ").Trim();
+
     private static string? NormalizeSpaces(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -318,7 +388,7 @@ public sealed partial class MetadataNormalizerService(IReferenceNormalizer refer
 
         var averageConfidence = references.Average(x => x.ParseConfidenceScore);
         var issuePenalty = references.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT")) * 5;
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT")) * 5;
         return Math.Clamp((int)Math.Round(averageConfidence - issuePenalty), 0, 100);
     }
 

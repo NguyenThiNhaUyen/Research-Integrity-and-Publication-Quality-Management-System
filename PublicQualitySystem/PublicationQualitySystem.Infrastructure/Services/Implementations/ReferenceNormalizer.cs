@@ -86,7 +86,11 @@ public sealed partial class ReferenceNormalizer : IReferenceNormalizer
             Issue = NullIfWhiteSpace(reference.Issue),
             Pages = pages,
             RawText = reference.RawText,
-            Doi = normalizedDoi
+            Doi = normalizedDoi,
+            DoiSource = reference.DoiSource,
+            DoiConfidence = reference.DoiConfidence,
+            IssueCodes = reference.IssueCodes,
+            WarningMessages = reference.WarningMessages
         };
 
         return new ReferenceNormalizationResult

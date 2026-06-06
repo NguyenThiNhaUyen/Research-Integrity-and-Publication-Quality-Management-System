@@ -37,10 +37,69 @@ public static class ScholarlyMetadataMerger
             grobid.Authors = crossref.Authors;
             usedCrossref = true;
         }
+        else if (grobid.Authors.Count > 0 && crossref.Authors.Count > 0)
+        {
+            grobid.Authors = MergeAuthorOrcids(grobid.Authors, crossref.Authors, ref usedCrossref);
+        }
 
         grobid.MetadataSource = usedCrossref ? "GROBID+CROSSREF" : "GROBID";
         return grobid;
     }
+
+    private static IReadOnlyList<AuthorDto> MergeAuthorOrcids(
+        IReadOnlyList<AuthorDto> grobidAuthors,
+        IReadOnlyList<AuthorDto> crossrefAuthors,
+        ref bool usedCrossref)
+    {
+        var merged = new List<AuthorDto>();
+        foreach (var author in grobidAuthors)
+        {
+            if (!string.IsNullOrWhiteSpace(author.Orcid))
+            {
+                merged.Add(author);
+                continue;
+            }
+
+            var crossref = crossrefAuthors.FirstOrDefault(candidate => NamesMatch(author, candidate));
+            if (string.IsNullOrWhiteSpace(crossref?.Orcid))
+            {
+                merged.Add(author);
+                continue;
+            }
+
+            usedCrossref = true;
+            merged.Add(new AuthorDto
+            {
+                FirstName = author.FirstName,
+                MiddleName = author.MiddleName,
+                LastName = author.LastName,
+                FullName = author.FullName,
+                Orcid = crossref.Orcid,
+                RawAuthorName = author.RawAuthorName,
+                IsCorresponding = author.IsCorresponding,
+                Email = author.Email,
+                Affiliation = author.Affiliation
+            });
+        }
+
+        return merged;
+    }
+
+    private static bool NamesMatch(AuthorDto left, AuthorDto right)
+    {
+        var leftName = NormalizeName(left.FullName);
+        var rightName = NormalizeName(right.FullName);
+        return !string.IsNullOrWhiteSpace(leftName)
+            && !string.IsNullOrWhiteSpace(rightName)
+            && (leftName == rightName
+                || leftName.Contains(rightName, StringComparison.OrdinalIgnoreCase)
+                || rightName.Contains(leftName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string? NormalizeName(string? name) =>
+        string.IsNullOrWhiteSpace(name)
+            ? null
+            : string.Join(" ", name.ToLowerInvariant().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     private static string? Prefer(string? current, string? candidate, ref bool usedCandidate)
     {

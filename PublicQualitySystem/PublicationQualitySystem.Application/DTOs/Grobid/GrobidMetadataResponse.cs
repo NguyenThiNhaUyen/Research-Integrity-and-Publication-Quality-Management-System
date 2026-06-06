@@ -16,6 +16,11 @@ public class GrobidMetadataResponse
     public string? Issue { get; set; }
     public string? Pages { get; set; }
     public string? CorrespondingAuthor { get; set; }
+    public DateOnly? ReceivedDate { get; set; }
+    public DateOnly? RevisedDate { get; set; }
+    public DateOnly? AcceptedDate { get; set; }
+    public DateOnly? PublishedDate { get; set; }
+    public string? OpenAccessLicense { get; set; }
     public string MetadataSource { get; set; } = "GROBID";
     public string? DoiSource { get; set; }
     public string? JournalSource { get; set; }

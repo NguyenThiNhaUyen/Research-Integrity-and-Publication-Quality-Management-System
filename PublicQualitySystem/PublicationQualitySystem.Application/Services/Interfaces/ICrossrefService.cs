@@ -7,4 +7,9 @@ public interface ICrossrefService
     Task<CrossrefMetadataResponse?> GetWorkByDoiAsync(
         string doi,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<CrossrefMetadataResponse>> SearchWorksByTitleAsync(
+        string title,
+        int rows,
+        CancellationToken cancellationToken);
 }

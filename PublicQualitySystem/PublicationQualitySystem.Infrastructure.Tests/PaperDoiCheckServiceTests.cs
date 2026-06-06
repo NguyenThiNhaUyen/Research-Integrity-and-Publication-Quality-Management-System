@@ -45,6 +45,16 @@ public class PaperDoiCheckServiceTests
     }
 
     [Fact]
+    public void TitleSimilarity_AcceptsMeaningfulPrefixForShortCrossrefTitle()
+    {
+        var score = PaperDoiCheckService.TitleSimilarity(
+            "Let's wait awhile: how temporal workload shifting can reduce carbon emissions in the cloud",
+            "Let's wait awhile");
+
+        Assert.True(score >= 75);
+    }
+
+    [Fact]
     public void CalculateOverallScore_PenalizesMissingMainDoiAndLowReferenceCoverage()
     {
         var score = PaperDoiCheckService.CalculateOverallScore(

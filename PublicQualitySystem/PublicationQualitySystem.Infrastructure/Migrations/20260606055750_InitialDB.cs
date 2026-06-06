@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddMetadataCleaningFields : Migration
+    public partial class InitialDB : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -162,6 +162,11 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     issue = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     pages = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     corresponding_author = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    received_date = table.Column<DateOnly>(type: "date", nullable: true),
+                    revised_date = table.Column<DateOnly>(type: "date", nullable: true),
+                    accepted_date = table.Column<DateOnly>(type: "date", nullable: true),
+                    published_date = table.Column<DateOnly>(type: "date", nullable: true),
+                    open_access_license = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     metadata_source = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     doi_source = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),
                     journal_source = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: true),

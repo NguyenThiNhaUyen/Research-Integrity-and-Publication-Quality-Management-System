@@ -23,7 +23,7 @@ public sealed class PaperDoiCheckService(
     IAuditLogService auditLog,
     ILogger<PaperDoiCheckService> logger) : IPaperDoiCheckService
 {
-    private const double TitleMismatchThreshold = 80;
+    private const double TitleMismatchThreshold = 75;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly Regex DoiRegex = new(
         @"^10\.\d{4,9}/[-._;()/:A-Z0-9]+$",
@@ -117,13 +117,30 @@ public sealed class PaperDoiCheckService(
                 try
                 {
                     var quality = referenceQuality.Evaluate(references[i]);
+                    var recovered = await RecoverReferenceDoiAsync(quality, cancellationToken);
+                    if (recovered is not null)
+                    {
+                        quality.Reference.Doi = recovered.MatchedDoi;
+                        quality.Reference.DoiSource = "CROSSREF_TITLE_SEARCH";
+                        quality.Reference.DoiConfidence = "HIGH";
+                        quality.NormalizedDoi = recovered.MatchedDoi;
+                        quality.DoiFormatValid = true;
+                        quality.IssueCodes = quality.IssueCodes
+                            .Where(issue => !string.Equals(issue, "REFERENCE_DOI_MISSING", StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
+                        quality.WarningMessages = quality.WarningMessages
+                            .Append("Reference DOI recovered by high-confidence Crossref title search.")
+                            .ToArray();
+                    }
                     qualityResults.Add(quality);
-                    var result = await ValidateDoiAsync(
-                        quality.Reference.Doi,
-                        quality.Reference.Title,
-                        quality.Reference.PublicationYear,
-                        isMain: false,
-                        cancellationToken);
+                    var result = recovered is null
+                        ? await ValidateDoiAsync(
+                            quality.Reference.Doi,
+                            quality.Reference.Title,
+                            quality.Reference.PublicationYear,
+                            isMain: false,
+                            cancellationToken)
+                        : ApplyMetadataComparison(recovered, quality.Reference.Title, quality.Reference.PublicationYear);
                     check.ReferenceChecks.Add(ToReferenceCheck(i, references[i], quality, result, now));
                 }
                 catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -369,9 +386,17 @@ public sealed class PaperDoiCheckService(
             return 100;
         }
 
+        if (IsMeaningfulPrefix(a, b))
+        {
+            return 100;
+        }
+
         var distance = LevenshteinDistance(a, b);
         var maxLength = Math.Max(a.Length, b.Length);
-        return Math.Round((1.0 - (double)distance / maxLength) * 100, 2);
+        var levenshtein = 1.0 - (double)distance / maxLength;
+        var jaccard = TokenJaccard(a, b);
+        var score = Math.Max(levenshtein, jaccard) * 100;
+        return Math.Round(score, 2);
     }
 
     private async Task<DoiValidationResult> ValidateDoiAsync(
@@ -428,6 +453,51 @@ public sealed class PaperDoiCheckService(
         return crossrefResult?.Status == DoiValidationStatus.SERVICE_ERROR
             ? crossrefResult
             : DoiValidationResult.Issue(DoiValidationStatus.NOT_FOUND, "DOI_NOT_FOUND", "DOI was not found in Crossref or OpenAlex.", normalizedDoi);
+    }
+
+    private async Task<DoiValidationResult?> RecoverReferenceDoiAsync(
+        ReferenceQualityResult quality,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(quality.Reference.Doi)
+            || string.IsNullOrWhiteSpace(quality.Reference.Title))
+        {
+            return null;
+        }
+
+        var candidates = await crossref.SearchWorksByTitleAsync(quality.Reference.Title, rows: 5, cancellationToken);
+        var best = candidates
+            .Select(candidate => new
+            {
+                Candidate = candidate,
+                Similarity = TitleSimilarity(quality.Reference.Title, candidate.Title)
+            })
+            .Where(x => x.Similarity >= TitleMismatchThreshold)
+            .OrderByDescending(x => x.Similarity)
+            .FirstOrDefault();
+        if (best is null || string.IsNullOrWhiteSpace(best.Candidate.Doi))
+        {
+            return null;
+        }
+
+        if (quality.Reference.PublicationYear.HasValue
+            && best.Candidate.PublicationYear.HasValue
+            && quality.Reference.PublicationYear.Value != best.Candidate.PublicationYear.Value)
+        {
+            return null;
+        }
+
+        return DoiValidationResult.FromCrossrefTitleSearch(
+            NormalizeDoi(best.Candidate.Doi)!,
+            best.Candidate,
+            best.Similarity,
+            JsonSerializer.Serialize(new
+            {
+                source = "CROSSREF_TITLE_SEARCH",
+                confidence = "HIGH",
+                titleSimilarity = best.Similarity,
+                candidate = best.Candidate
+            }, JsonOptions));
     }
 
     private static DoiValidationResult ApplyMetadataComparison(DoiValidationResult result, string? expectedTitle, int? expectedYear)
@@ -510,7 +580,7 @@ public sealed class PaperDoiCheckService(
         check.LowConfidenceReferences = qualityResults.Count(x => x.IssueCodes.Contains("REFERENCE_AUTHOR_LOW_CONFIDENCE"));
         check.DuplicateReferences = CountDuplicateReferences(references);
         check.ReferenceCleanlinessIssues = qualityResults.Sum(x => x.IssueCodes.Count(issue =>
-            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT"));
+            issue is "REFERENCE_TITLE_POLLUTED" or "REFERENCE_JOURNAL_SUSPECT" or "REFERENCE_AUTHOR_LOW_CONFIDENCE" or "REFERENCE_PAGES_SUSPECT" or "REFERENCE_BOUNDARY_SUSPECT"));
         check.ReferenceDoiCoveragePercent = check.TotalReferences == 0
             ? 0
             : Math.Round(check.ReferencesWithDoi * 100.0 / check.TotalReferences, 2);
@@ -699,6 +769,28 @@ public sealed class PaperDoiCheckService(
         return Regex.Replace(builder.ToString(), @"\s+", " ").Trim();
     }
 
+    private static bool IsMeaningfulPrefix(string left, string right)
+    {
+        var shorter = left.Length <= right.Length ? left : right;
+        var longer = left.Length <= right.Length ? right : left;
+        return shorter.Length >= 12
+            && longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static double TokenJaccard(string left, string right)
+    {
+        var leftTokens = left.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rightTokens = right.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (leftTokens.Count == 0 || rightTokens.Count == 0)
+        {
+            return 0;
+        }
+
+        var intersection = leftTokens.Intersect(rightTokens, StringComparer.OrdinalIgnoreCase).Count();
+        var union = leftTokens.Union(rightTokens, StringComparer.OrdinalIgnoreCase).Count();
+        return union == 0 ? 0 : intersection * 1.0 / union;
+    }
+
     private static int LevenshteinDistance(string a, string b)
     {
         var matrix = new int[a.Length + 1, b.Length + 1];
@@ -744,6 +836,9 @@ public sealed class PaperDoiCheckService(
 
         public static DoiValidationResult FromCrossref(string requestedDoi, PublicationQualitySystem.Application.DTOs.Crossref.CrossrefMetadataResponse response, string rawJson) =>
             new(DoiValidationStatus.VALID, "Crossref", NormalizeDoi(response.Doi) ?? requestedDoi, response.Title, response.Publisher ?? response.Journal, response.PublicationYear, null, null, null, null, rawJson);
+
+        public static DoiValidationResult FromCrossrefTitleSearch(string recoveredDoi, PublicationQualitySystem.Application.DTOs.Crossref.CrossrefMetadataResponse response, double titleSimilarity, string rawJson) =>
+            new(DoiValidationStatus.VALID, "CROSSREF_TITLE_SEARCH", NormalizeDoi(response.Doi) ?? recoveredDoi, response.Title, response.Publisher ?? response.Journal, response.PublicationYear, titleSimilarity, null, null, null, rawJson);
 
         public static DoiValidationResult FromOpenAlex(string requestedDoi, PublicationQualitySystem.Application.DTOs.OpenAlex.OpenAlexWorkDto response) =>
             new(DoiValidationStatus.VALID, "OpenAlex", NormalizeDoi(response.Doi) ?? requestedDoi, response.Title, response.Journal, response.PublicationYear, null, null, null, null, string.IsNullOrWhiteSpace(response.RawJson) ? "{}" : response.RawJson);

@@ -256,6 +256,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
             metadata.Issue = normalized.Issue;
             metadata.Pages = normalized.Pages;
             metadata.CorrespondingAuthor = normalized.CorrespondingAuthor;
+            metadata.ReceivedDate = normalized.ReceivedDate;
+            metadata.RevisedDate = normalized.RevisedDate;
+            metadata.AcceptedDate = normalized.AcceptedDate;
+            metadata.PublishedDate = normalized.PublishedDate;
+            metadata.OpenAccessLicense = normalized.OpenAccessLicense;
             metadata.MetadataSource = normalized.MetadataSource;
             metadata.DoiSource = normalized.DoiSource;
             metadata.JournalSource = normalized.JournalSource;
@@ -280,6 +285,11 @@ public sealed class PaperMetadataKafkaConsumerBackgroundService(
                 Volume = normalized.Volume,
                 Issue = normalized.Issue,
                 Pages = normalized.Pages,
+                ReceivedDate = normalized.ReceivedDate,
+                RevisedDate = normalized.RevisedDate,
+                AcceptedDate = normalized.AcceptedDate,
+                PublishedDate = normalized.PublishedDate,
+                OpenAccessLicense = normalized.OpenAccessLicense,
                 Keywords = normalized.Keywords,
                 References = normalized.References
             }, JsonOptions);

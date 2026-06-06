@@ -12,4 +12,8 @@ public class ReferenceDto
     public string? Pages { get; set; }
     public string? RawText { get; set; }
     public string? Doi { get; set; }
+    public string? DoiSource { get; set; }
+    public string? DoiConfidence { get; set; }
+    public IReadOnlyList<string> IssueCodes { get; set; } = Array.Empty<string>();
+    public IReadOnlyList<string> WarningMessages { get; set; } = Array.Empty<string>();
 }

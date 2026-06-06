@@ -180,4 +180,51 @@ public class MetadataNormalizerServiceTests
         Assert.True(result.ReferenceCleanlinessScore >= 0);
         Assert.True(result.DirtyFieldCount >= 2);
     }
+
+    [Fact]
+    public void Normalize_MarksParentMetadataLeakAsReferenceBoundarySuspect()
+    {
+        var result = service.Normalize(new GrobidMetadataResponse
+        {
+            Title = "LESS-ON: Load-aware edge server shutdown for energy saving in cellular networks",
+            Journal = "Computer Networks",
+            Volume = "252",
+            Pages = "110675",
+            References =
+            [
+                new ReferenceDto
+                {
+                    Title = "5G PPP Architecture Working Group -View on 5G architecture",
+                    Journal = "Computer Networks",
+                    Volume = "252",
+                    Pages = "110675",
+                    RawText = "5G PPP Architecture Working Group -View on 5G architecture"
+                }
+            ]
+        });
+
+        var reference = Assert.Single(result.Metadata.References);
+        Assert.Contains("REFERENCE_BOUNDARY_SUSPECT", reference.IssueCodes);
+        Assert.Contains("REFERENCE_BOUNDARY_SUSPECT", result.IssueCodes);
+        Assert.True(result.ReferenceResults[0].MetadataCompletenessScore < 60);
+    }
+
+    [Fact]
+    public void Normalize_PreservesLifecycleDatesAndLicense()
+    {
+        var result = service.Normalize(new GrobidMetadataResponse
+        {
+            ReceivedDate = new DateOnly(2024, 1, 1),
+            RevisedDate = new DateOnly(2024, 2, 1),
+            AcceptedDate = new DateOnly(2024, 3, 1),
+            PublishedDate = new DateOnly(2024, 4, 1),
+            OpenAccessLicense = "https://creativecommons.org/licenses/by/4.0/"
+        });
+
+        Assert.Equal(new DateOnly(2024, 1, 1), result.Metadata.ReceivedDate);
+        Assert.Equal(new DateOnly(2024, 2, 1), result.Metadata.RevisedDate);
+        Assert.Equal(new DateOnly(2024, 3, 1), result.Metadata.AcceptedDate);
+        Assert.Equal(new DateOnly(2024, 4, 1), result.Metadata.PublishedDate);
+        Assert.Equal("CC BY 4.0", result.Metadata.OpenAccessLicense);
+    }
 }

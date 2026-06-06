@@ -12,8 +12,8 @@ using PublicationQualitySystem.Infrastructure.Configurations;
 namespace PublicationQualitySystem.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260606044225_AddMetadataCleaningFields")]
-    partial class AddMetadataCleaningFields
+    [Migration("20260606055750_InitialDB")]
+    partial class InitialDB
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -433,6 +433,10 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("abstract");
 
+                    b.Property<DateOnly?>("AcceptedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("accepted_date");
+
                     b.Property<string>("ArxivId")
                         .HasColumnType("text")
                         .HasColumnName("arxiv_id");
@@ -578,6 +582,11 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("normalized_metadata_json");
 
+                    b.Property<string>("OpenAccessLicense")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("open_access_license");
+
                     b.Property<string>("Pages")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
@@ -590,6 +599,10 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                     b.Property<int?>("PublicationYear")
                         .HasColumnType("integer")
                         .HasColumnName("publication_year");
+
+                    b.Property<DateOnly?>("PublishedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("published_date");
 
                     b.Property<string>("Publisher")
                         .HasMaxLength(500)
@@ -604,6 +617,10 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("raw_metadata_json");
 
+                    b.Property<DateOnly?>("ReceivedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("received_date");
+
                     b.Property<int?>("ReferenceCleanlinessScore")
                         .HasColumnType("integer")
                         .HasColumnName("reference_cleanliness_score");
@@ -612,6 +629,10 @@ namespace PublicationQualitySystem.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("references_json");
+
+                    b.Property<DateOnly?>("RevisedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("revised_date");
 
                     b.Property<string>("Title")
                         .HasMaxLength(500)

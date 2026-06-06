@@ -61,22 +61,7 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
             return null;
         }
 
-        var result = new CrossrefMetadataResponse
-        {
-            Title = First(message.Title),
-            Abstract = StripMarkup(message.Abstract),
-            Doi = message.Doi,
-            Journal = First(message.ContainerTitle) ?? First(message.ShortContainerTitle),
-            Publisher = message.Publisher,
-            PublicationYear = ParseYear(message),
-            Volume = message.Volume,
-            Issue = message.Issue,
-            Pages = message.Page,
-            Authors = message.Author?
-                .Select(ToAuthor)
-                .Where(x => !string.IsNullOrWhiteSpace(x.FullName))
-                .ToArray() ?? Array.Empty<AuthorDto>()
-        };
+        var result = ToResponse(message);
 
         logger.LogInformation(
             "Crossref lookup success. Doi={Doi}, HasJournal={HasJournal}, HasPublisher={HasPublisher}, HasYear={HasYear}, AuthorCount={AuthorCount}, ElapsedMs={ElapsedMs}",
@@ -90,6 +75,56 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
         return result;
     }
 
+    public async Task<IReadOnlyList<CrossrefMetadataResponse>> SearchWorksByTitleAsync(
+        string title,
+        int rows,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return Array.Empty<CrossrefMetadataResponse>();
+        }
+
+        var encodedTitle = Uri.EscapeDataString(title);
+        try
+        {
+            var response = await httpClient.GetAsync($"/works?query.title={encodedTitle}&rows={Math.Clamp(rows, 1, 10)}", cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return Array.Empty<CrossrefMetadataResponse>();
+            }
+
+            var payload = await response.Content.ReadFromJsonAsync<CrossrefSearchEnvelope>(cancellationToken: cancellationToken);
+            return payload?.Message?.Items?
+                .Select(ToResponse)
+                .Where(x => !string.IsNullOrWhiteSpace(x.Title) && !string.IsNullOrWhiteSpace(x.Doi))
+                .ToArray() ?? Array.Empty<CrossrefMetadataResponse>();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogWarning(ex, "Crossref title search failed. Title={Title}", title);
+            return Array.Empty<CrossrefMetadataResponse>();
+        }
+    }
+
+    private static CrossrefMetadataResponse ToResponse(CrossrefMessage message) => new()
+    {
+        Title = First(message.Title),
+        Abstract = StripMarkup(message.Abstract),
+        Doi = message.Doi,
+        Journal = First(message.ContainerTitle) ?? First(message.ShortContainerTitle),
+        Publisher = message.Publisher,
+        PublicationYear = ParseYear(message),
+        PublishedDate = FirstDate(message.PublishedOnline) ?? FirstDate(message.PublishedPrint) ?? FirstDate(message.Published) ?? FirstDate(message.Issued),
+        Volume = message.Volume,
+        Issue = message.Issue,
+        Pages = message.Page,
+        Authors = message.Author?
+            .Select(ToAuthor)
+            .Where(x => !string.IsNullOrWhiteSpace(x.FullName))
+            .ToArray() ?? Array.Empty<AuthorDto>()
+    };
+
     private static AuthorDto ToAuthor(CrossrefAuthor author)
     {
         var given = NullIfWhiteSpace(author.Given);
@@ -101,6 +136,7 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
             FirstName = given,
             LastName = family,
             FullName = fullName,
+            Orcid = NormalizeOrcid(author.Orcid),
             Affiliation = author.Affiliation is { Count: > 0 }
                 ? string.Join("; ", author.Affiliation.Select(x => x.Name).Where(x => !string.IsNullOrWhiteSpace(x)))
                 : null
@@ -119,6 +155,38 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
     {
         var year = dateParts?.DateParts?.FirstOrDefault()?.FirstOrDefault();
         return year is > 0 ? year : null;
+    }
+
+    private static DateOnly? FirstDate(CrossrefDateParts? dateParts)
+    {
+        var parts = dateParts?.DateParts?.FirstOrDefault();
+        if (parts is null || parts.Count == 0)
+        {
+            return null;
+        }
+
+        var year = parts.ElementAtOrDefault(0);
+        var month = parts.ElementAtOrDefault(1);
+        var day = parts.ElementAtOrDefault(2);
+        if (year <= 0)
+        {
+            return null;
+        }
+
+        month = month <= 0 ? 1 : month;
+        day = day <= 0 ? 1 : day;
+        return DateOnly.TryParse($"{year:D4}-{month:D2}-{day:D2}", out var date) ? date : null;
+    }
+
+    private static string? NormalizeOrcid(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var match = System.Text.RegularExpressions.Regex.Match(value, @"\d{4}-\d{4}-\d{4}-[\dX]{4}", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return match.Success ? match.Value : null;
     }
 
     private static string? First(IReadOnlyList<string>? values) =>
@@ -147,6 +215,18 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
     {
         [JsonPropertyName("message")]
         public CrossrefMessage? Message { get; set; }
+    }
+
+    private sealed class CrossrefSearchEnvelope
+    {
+        [JsonPropertyName("message")]
+        public CrossrefSearchMessage? Message { get; set; }
+    }
+
+    private sealed class CrossrefSearchMessage
+    {
+        [JsonPropertyName("items")]
+        public IReadOnlyList<CrossrefMessage>? Items { get; set; }
     }
 
     private sealed class CrossrefMessage
@@ -210,6 +290,9 @@ public sealed class CrossrefService(HttpClient httpClient, ILogger<CrossrefServi
 
         [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("ORCID")]
+        public string? Orcid { get; set; }
 
         [JsonPropertyName("affiliation")]
         public IReadOnlyList<CrossrefAffiliation>? Affiliation { get; set; }
