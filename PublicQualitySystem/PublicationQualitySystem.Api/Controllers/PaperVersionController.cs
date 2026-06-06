@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using PublicationQualitySystem.Api.Common;
-using PublicationQualitySystem.Application.DTOs.Audit;
+using PublicationQualitySystem.Application.DTOs.Paper;
 using PublicationQualitySystem.Application.DTOs.Processing;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Shared.Common;
@@ -9,20 +9,32 @@ namespace PublicationQualitySystem.Api.Controllers;
 
 [Route("api/paper-versions")]
 public class PaperVersionController(
-    IAuditLogService auditLogService,
+    IPaperVersionService paperVersionService,
     IPaperProcessingTrackerService processingTrackerService,
     ILogger<PaperVersionController> logger) : ApiBaseController
 {
-    [HttpGet("{paperVersionId:long}/audit-logs")]
-    public async Task<ActionResult<BaseResponse<IReadOnlyList<AuditLogResponse>>>> GetAuditLogs(
+    [HttpGet("/api/papers/{paperId:long}/versions")]
+    public async Task<ActionResult<BaseResponse<IReadOnlyList<PaperVersionResponse>>>> GetVersionsByPaper(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Paper versions request received. PaperId={PaperId}", paperId);
+
+        var result = await paperVersionService.GetVersionsByPaperIdAsync(paperId, cancellationToken);
+
+        return OkResponse(result, "Paper versions retrieved successfully");
+    }
+
+    [HttpGet("{paperVersionId:long}")]
+    public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> GetVersion(
         long paperVersionId,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("PaperVersion audit logs request received. PaperVersionId={PaperVersionId}", paperVersionId);
+        logger.LogInformation("PaperVersion request received. PaperVersionId={PaperVersionId}", paperVersionId);
 
-        var result = await auditLogService.GetLogsByPaperVersionIdAsync(paperVersionId, cancellationToken);
+        var result = await paperVersionService.GetVersionAsync(paperVersionId, cancellationToken);
 
-        return OkResponse(result, "Success");
+        return OkResponse(result, "Paper version retrieved successfully");
     }
 
     [HttpGet("{paperVersionId:long}/processing-tracker")]

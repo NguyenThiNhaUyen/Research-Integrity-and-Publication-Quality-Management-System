@@ -6,19 +6,48 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.OpenAlex;
+using PublicationQualitySystem.Application.Mappings;
+using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
 using PublicationQualitySystem.Infrastructure.Options;
+using PublicationQualitySystem.Infrastructure.Security;
+using PublicationQualitySystem.Shared.Exceptions;
+using PublicationQualitySystem.Shared.Extensions;
 
 namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public sealed partial class OpenAlexService(
     HttpClient httpClient,
     IOptions<OpenAlexOptions> options,
+    IOpenAlexRepository openAlexRepository,
+    IPaperVersionRepository versions,
+    ICurrentUserProvider currentUser,
     ILogger<OpenAlexService> logger) : IOpenAlexService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public async Task<SimilarityResultResponse> GetSimilarityByPaperVersionIdAsync(
+        long paperVersionId,
+        CancellationToken cancellationToken = default)
+    {
+        var version = await versions.FindByIdAsync(paperVersionId, cancellationToken);
+        if (version is null)
+        {
+            throw new AppException(AuditLogErrorCode.NotFound);
+        }
+
+        EnsureCanViewPaper(version.Paper);
+
+        var check = await openAlexRepository.FindSimilarityByPaperVersionIdAsync(paperVersionId, cancellationToken);
+        if (check is null)
+        {
+            throw new AppException(PaperErrorCode.MetadataNotFound);
+        }
+
+        return SimilarityResultMapper.ToResponse(check, paperVersionId);
+    }
 
     public async Task<OpenAlexWorkDto?> GetWorkByDoiAsync(string doi, CancellationToken cancellationToken = default)
     {
@@ -695,6 +724,27 @@ public sealed partial class OpenAlexService(
         {
             return default;
         }
+    }
+
+    private bool CanReadAllPapers() =>
+        currentUser.User.HasPermission(nameof(PermissionName.PAPER_READ_ALL))
+        || currentUser.User.HasPermission(nameof(PermissionName.AUDIT_LOG_READ));
+
+    private void EnsureCanViewPaper(Paper paper)
+    {
+        if (CanReadAllPapers())
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentUser.Subject)
+            && !string.IsNullOrWhiteSpace(paper.CreatedBy)
+            && string.Equals(paper.CreatedBy, currentUser.Subject, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new AppException(AuditLogErrorCode.Forbidden);
     }
 
     [GeneratedRegex(@"[\p{L}\p{N}]+", RegexOptions.CultureInvariant)]

@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using PublicationQualitySystem.Application.DTOs.Audit;
+using PublicationQualitySystem.Application.Mappings;
+using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Domain.Enums;
@@ -13,6 +15,7 @@ namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public sealed class AuditLogService(
     ApplicationDbContext db,
+    IAuditLogRepository auditLogs,
     ICurrentUserProvider currentUser) : IAuditLogService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -130,14 +133,9 @@ public sealed class AuditLogService(
     public async Task<IReadOnlyList<AuditLogResponse>> GetLogsByPaperIdAsync(long paperId, CancellationToken cancellationToken)
     {
         await EnsureCanViewPaperAsync(paperId, cancellationToken);
-        var logs = await db.AuditLogs
-            .AsNoTracking()
-            .Where(x => x.PaperId == paperId)
-            .OrderBy(x => x.CreatedAt)
-            .ThenBy(x => x.Step)
-            .ToListAsync(cancellationToken);
+        var logs = await auditLogs.FindByPaperIdAsync(paperId, cancellationToken);
 
-        return logs.Select(ToResponse).ToArray();
+        return logs.Select(AuditLogMapper.ToResponse).ToArray();
     }
 
     public async Task<IReadOnlyList<AuditLogResponse>> GetLogsByPaperVersionIdAsync(long paperVersionId, CancellationToken cancellationToken)
@@ -149,14 +147,9 @@ public sealed class AuditLogService(
         }
 
         await EnsureCanViewPaperAsync(version.PaperId, cancellationToken);
-        var logs = await db.AuditLogs
-            .AsNoTracking()
-            .Where(x => x.PaperVersionId == paperVersionId)
-            .OrderBy(x => x.CreatedAt)
-            .ThenBy(x => x.Step)
-            .ToListAsync(cancellationToken);
+        var logs = await auditLogs.FindByPaperVersionIdAsync(paperVersionId, cancellationToken);
 
-        return logs.Select(ToResponse).ToArray();
+        return logs.Select(AuditLogMapper.ToResponse).ToArray();
     }
 
     public async Task<ProcessingProgressResponse> GetProcessingProgressByPaperIdAsync(long paperId, CancellationToken cancellationToken)

@@ -16,6 +16,27 @@ public class PaperController(
     IPaperProcessingTrackerService processingTrackerService,
     ILogger<PaperController> logger) : ApiBaseController
 {
+    [HttpGet]
+    public async Task<ActionResult<BaseResponse<IReadOnlyList<PaperResponse>>>> GetPapers(
+        [FromQuery] int page = 0,
+        [FromQuery] int size = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] bool sortDescending = true,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await paperService.GetPapersAsync(page, size, search, sortDescending, cancellationToken);
+        return OkResponse(result, "Papers retrieved successfully");
+    }
+
+    [HttpGet("{paperId:long}")]
+    public async Task<ActionResult<BaseResponse<PaperResponse>>> GetPaper(
+        long paperId,
+        CancellationToken cancellationToken)
+    {
+        var result = await paperService.GetPaperAsync(paperId, cancellationToken);
+        return OkResponse(result, "Paper retrieved successfully");
+    }
+
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<BaseResponse<PaperVersionResponse>>> Upload(

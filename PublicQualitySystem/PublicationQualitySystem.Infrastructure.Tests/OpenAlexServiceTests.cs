@@ -5,10 +5,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.OpenAlex;
+using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.Services.Interfaces;
 using PublicationQualitySystem.Domain.Entities;
 using PublicationQualitySystem.Infrastructure.Options;
+using PublicationQualitySystem.Infrastructure.Security;
 using PublicationQualitySystem.Infrastructure.Services.Implementations;
+using System.Security.Claims;
 
 namespace PublicationQualitySystem.Infrastructure.Tests;
 
@@ -205,6 +208,9 @@ public class OpenAlexServiceTests
                 ReferenceTitleThreshold = 85,
                 AuthorNameThreshold = 75
             }),
+            new StubOpenAlexRepository(),
+            new StubPaperVersionRepository(),
+            new StubCurrentUserProvider(),
             NullLogger<OpenAlexService>.Instance);
     }
 
@@ -266,5 +272,27 @@ public class OpenAlexServiceTests
 
             return Task.FromResult(response);
         }
+    }
+
+    private sealed class StubOpenAlexRepository : IOpenAlexRepository
+    {
+        public Task<PaperSimilarityCheck?> FindSimilarityByPaperVersionIdAsync(long paperVersionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PaperSimilarityCheck?>(null);
+    }
+
+    private sealed class StubPaperVersionRepository : IPaperVersionRepository
+    {
+        public Task<IReadOnlyList<PaperVersion>> FindByPaperIdAsync(long paperId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PaperVersion>>(Array.Empty<PaperVersion>());
+
+        public Task<PaperVersion?> FindByIdAsync(long paperVersionId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PaperVersion?>(null);
+    }
+
+    private sealed class StubCurrentUserProvider : ICurrentUserProvider
+    {
+        public string? Email => "test@example.org";
+        public string? Subject => "test-user";
+        public ClaimsPrincipal User { get; } = new(new ClaimsIdentity());
     }
 }

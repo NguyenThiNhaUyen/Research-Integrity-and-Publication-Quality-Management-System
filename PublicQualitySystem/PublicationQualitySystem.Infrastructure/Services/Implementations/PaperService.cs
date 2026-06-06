@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using PublicationQualitySystem.Application.Mappings;
+using PublicationQualitySystem.Application.Repositories.Interfaces;
 using PublicationQualitySystem.Application.DTOs.Grobid;
 using PublicationQualitySystem.Application.DTOs.IntegrationEvents;
 using PublicationQualitySystem.Application.DTOs.Paper;
@@ -12,11 +14,13 @@ using PublicationQualitySystem.Infrastructure.Options;
 using PublicationQualitySystem.Infrastructure.Security;
 using Microsoft.Extensions.Options;
 using PublicationQualitySystem.Shared.Exceptions;
+using PublicationQualitySystem.Shared.Extensions;
 
 namespace PublicationQualitySystem.Infrastructure.Services.Implementations;
 
 public class PaperService(
     ApplicationDbContext db,
+    IPaperRepository papers,
     IFileStorageService storage,
     IOptions<KafkaOptions> kafkaOptions,
     IAuditLogService auditLog,
@@ -25,6 +29,40 @@ public class PaperService(
     ILogger<PaperService> logger) : IPaperService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public async Task<IReadOnlyList<PaperResponse>> GetPapersAsync(
+        int page,
+        int size,
+        string? search,
+        bool sortDescending,
+        CancellationToken cancellationToken)
+    {
+        var safePage = Math.Max(page, 0);
+        var safeSize = Math.Clamp(size, 1, 100);
+        var canReadAll = CanReadAllPapers();
+        var result = await papers.FindPagedAsync(
+            search,
+            currentUser.Subject,
+            canReadAll,
+            safePage * safeSize,
+            safeSize,
+            sortDescending,
+            cancellationToken);
+
+        return result.Select(PaperMapper.ToResponse).ToArray();
+    }
+
+    public async Task<PaperResponse> GetPaperAsync(long paperId, CancellationToken cancellationToken)
+    {
+        var paper = await papers.FindByIdAsync(paperId, cancellationToken);
+        if (paper is null)
+        {
+            throw new AppException(PaperErrorCode.NotFound);
+        }
+
+        EnsureCanViewPaper(paper);
+        return PaperMapper.ToResponse(paper);
+    }
 
     public async Task<PaperVersionResponse> UploadPaperAsync(
         Stream pdfStream,
@@ -366,6 +404,27 @@ public class PaperService(
         ConvertedAt = version.ConvertedAt,
         ConversionError = version.ConversionError
     };
+
+    private bool CanReadAllPapers() =>
+        currentUser.User.HasPermission(nameof(PermissionName.PAPER_READ_ALL))
+        || currentUser.User.HasPermission(nameof(PermissionName.AUDIT_LOG_READ));
+
+    private void EnsureCanViewPaper(Paper paper)
+    {
+        if (CanReadAllPapers())
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(currentUser.Subject)
+            && !string.IsNullOrWhiteSpace(paper.CreatedBy)
+            && string.Equals(paper.CreatedBy, currentUser.Subject, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        throw new AppException(AuditLogErrorCode.Forbidden);
+    }
 
     private static T? DeserializeJson<T>(string json)
     {

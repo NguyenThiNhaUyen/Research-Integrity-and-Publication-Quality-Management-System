@@ -10,6 +10,12 @@ public static class RepositoryConfiguration
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IRoleRepository, RoleRepository>();
         services.AddScoped<IPermissionRepository, PermissionRepository>();
+        services.AddScoped<IPaperRepository, PaperRepository>();
+        services.AddScoped<IPaperVersionRepository, PaperVersionRepository>();
+        services.AddScoped<IProcessingTrackerRepository, ProcessingTrackerRepository>();
+        services.AddScoped<IMetadataQualityRepository, MetadataQualityRepository>();
+        services.AddScoped<IOpenAlexRepository, OpenAlexRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         return services;
     }
